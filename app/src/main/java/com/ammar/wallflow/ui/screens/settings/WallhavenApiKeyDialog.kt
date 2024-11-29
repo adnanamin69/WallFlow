@@ -14,41 +14,32 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ammar.wallflow.R
 import com.ammar.wallflow.extensions.trimAll
+import com.ammar.wallflow.navigation.AppNavGraphs.RootNavGraph
 import com.ammar.wallflow.ui.theme.WallFlowTheme
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.navigation.DestinationsNavigator
 import com.ramcosta.composedestinations.spec.DestinationStyle
 
-@Destination(style = DestinationStyle.Dialog::class)
+@Destination<RootNavGraph>(
+    style = DestinationStyle.Dialog::class,
+)
 @Composable
 fun WallhavenApiKeyDialog(
     viewModel: WallhavenApiKeyViewModel = hiltViewModel(),
     navigator: DestinationsNavigator,
 ) {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val uiState by produceState(
-        initialValue = WallhavenApiKeyUiState(),
-        key1 = lifecycle,
-        key2 = viewModel,
-    ) {
-        lifecycle.repeatOnLifecycle(state = Lifecycle.State.STARTED) {
-            viewModel.uiState.collect { value = it }
-        }
-    }
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     WallhavenApiKeyDialogContent(
         wallhavenApiKey = uiState.apiKey,

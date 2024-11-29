@@ -1,6 +1,5 @@
 package com.ammar.wallflow.ui.screens.local
 
-import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -20,37 +18,38 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.ammar.wallflow.destinations.WallpaperScreenDestination
 import com.ammar.wallflow.extensions.rememberLazyStaggeredGridState
+import com.ammar.wallflow.extensions.safeLaunch
 import com.ammar.wallflow.model.Wallpaper
+import com.ammar.wallflow.navigation.AppNavGraphs.LocalNavGraph
 import com.ammar.wallflow.ui.common.LocalSystemController
 import com.ammar.wallflow.ui.common.bottomWindowInsets
 import com.ammar.wallflow.ui.common.bottombar.LocalBottomBarController
-import com.ammar.wallflow.ui.common.mainsearch.LocalMainSearchBarController
 import com.ammar.wallflow.ui.common.topWindowInsets
-import com.ammar.wallflow.ui.screens.destinations.WallpaperScreenDestination
+import com.ammar.wallflow.ui.screens.main.RootNavControllerWrapper
 import com.ammar.wallflow.ui.wallpaperviewer.WallpaperViewerViewModel
 import com.ammar.wallflow.utils.applyWallpaper
 import com.ammar.wallflow.utils.getStartBottomPadding
 import com.ammar.wallflow.utils.shareWallpaper
 import com.ramcosta.composedestinations.annotation.Destination
-import com.ramcosta.composedestinations.navigation.navigate
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Destination
+@Destination<LocalNavGraph>(
+    start = true,
+)
 @Composable
 fun LocalScreen(
-    navController: NavController,
+    rootNavControllerWrapper: RootNavControllerWrapper,
     viewModel: LocalScreenViewModel = hiltViewModel(),
     viewerViewModel: WallpaperViewerViewModel = hiltViewModel(),
 ) {
+    val rootNavController = rootNavControllerWrapper.navController
     val uiState by viewModel.uiState.collectAsState()
     val viewerUiState by viewerViewModel.uiState.collectAsStateWithLifecycle()
     val wallpapers = viewModel.wallpapers.collectAsLazyPagingItems()
     val systemController = LocalSystemController.current
     val bottomBarController = LocalBottomBarController.current
-    val searchBarController = LocalMainSearchBarController.current
     val bottomWindowInsets = bottomWindowInsets
     val gridState = wallpapers.rememberLazyStaggeredGridState()
     val navigationBarsInsets = WindowInsets.navigationBars
@@ -76,17 +75,12 @@ fun LocalScreen(
         if (it == null) {
             return@rememberLauncherForActivityResult
         }
-        context.contentResolver.takePersistableUriPermission(
-            it,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION,
-        )
-        viewModel.refreshFolders()
+        viewModel.addLocalDir(it)
     }
 
     LaunchedEffect(Unit) {
         systemController.resetBarsState()
         bottomBarController.update { it.copy(visible = true) }
-        searchBarController.update { it.copy(visible = false) }
     }
 
     val onWallpaperClick: (wallpaper: Wallpaper) -> Unit = remember(systemState.isExpanded) {
@@ -100,12 +94,12 @@ fun LocalScreen(
                 )
             } else {
                 // navigate to wallpaper screen
-                navController.navigate(
+                rootNavController.navigate(
                     WallpaperScreenDestination(
                         source = it.source,
                         wallpaperId = it.id,
                         thumbData = it.thumbData,
-                    ),
+                    ).route,
                 )
             }
         }
@@ -113,7 +107,7 @@ fun LocalScreen(
 
     val onAddFolderClick: () -> Unit = remember(openDocumentTreeLauncher) {
         {
-            openDocumentTreeLauncher.launch(null)
+            openDocumentTreeLauncher.safeLaunch(context, null)
         }
     }
 
@@ -125,8 +119,8 @@ fun LocalScreen(
         folders = uiState.folders,
         isExpanded = systemState.isExpanded,
         contentPadding = PaddingValues(
-            start = 8.dp,
-            end = 8.dp,
+            start = if (systemState.isExpanded) 0.dp else 8.dp,
+            end = if (systemState.isExpanded) 0.dp else 8.dp,
             top = 8.dp,
             bottom = bottomPadding + 8.dp,
         ),
@@ -134,6 +128,7 @@ fun LocalScreen(
         favorites = uiState.favorites,
         viewedList = uiState.viewedList,
         viewedWallpapersLook = uiState.viewedWallpapersLook,
+        lightDarkList = uiState.lightDarkList,
         selectedWallpaper = uiState.selectedWallpaper,
         layoutPreferences = uiState.layoutPreferences,
         fullWallpaper = viewerUiState.wallpaper,
@@ -157,17 +152,18 @@ fun LocalScreen(
         },
         onFullWallpaperFullScreenClick = {
             viewerUiState.wallpaper?.run {
-                navController.navigate(
+                rootNavController.navigate(
                     WallpaperScreenDestination(
                         source = source,
                         thumbData = thumbData,
                         wallpaperId = id,
-                    ),
+                    ).route,
                 )
             }
         },
         onFABClick = { viewModel.showManageFoldersSheet(true) },
         onAddFolderClick = onAddFolderClick,
+        onFullWallpaperLightDarkTypeFlagsChange = viewerViewModel::updateLightDarkTypeFlags,
     )
 
     if (uiState.showManageFoldersSheet) {
@@ -176,14 +172,15 @@ fun LocalScreen(
             sort = uiState.sort,
             onDismissRequest = { viewModel.showManageFoldersSheet(false) },
             onAddFolderClick = onAddFolderClick,
-            onRemoveClick = {
-                context.contentResolver.releasePersistableUriPermission(
-                    it.uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
-                )
-                viewModel.refreshFolders()
-            },
+            onRemoveClick = { viewModel.showRemoveConfirmDialog(it.uri) },
             onSortChange = viewModel::updateSort,
+        )
+    }
+
+    if (uiState.showRemoveConfirmDialog) {
+        RemoveDirectoryConfirmDialog(
+            onConfirmClick = { viewModel.removeLocalDirConfirmed() },
+            onDismissRequest = { viewModel.showRemoveConfirmDialog(null) },
         )
     }
 }

@@ -37,6 +37,7 @@ import com.ammar.wallflow.R
 import com.ammar.wallflow.data.preferences.LayoutPreferences
 import com.ammar.wallflow.data.preferences.ViewedWallpapersLook
 import com.ammar.wallflow.model.Favorite
+import com.ammar.wallflow.model.LightDark
 import com.ammar.wallflow.model.Viewed
 import com.ammar.wallflow.model.Wallpaper
 import com.ammar.wallflow.model.local.LocalDirectory
@@ -57,6 +58,7 @@ internal fun LocalScreenContent(
     favorites: ImmutableList<Favorite> = persistentListOf(),
     viewedList: ImmutableList<Viewed> = persistentListOf(),
     viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    lightDarkList: ImmutableList<LightDark> = persistentListOf(),
     selectedWallpaper: Wallpaper? = null,
     layoutPreferences: LayoutPreferences = LayoutPreferences(),
     fullWallpaper: Wallpaper? = null,
@@ -75,6 +77,7 @@ internal fun LocalScreenContent(
     onFullWallpaperApplyWallpaperClick: () -> Unit = {},
     onFullWallpaperFullScreenClick: () -> Unit = {},
     onAddFolderClick: () -> Unit = {},
+    onFullWallpaperLightDarkTypeFlagsChange: (Int) -> Unit = {},
 ) {
     LocalScreenContent(
         modifier = modifier,
@@ -89,6 +92,7 @@ internal fun LocalScreenContent(
                 favorites = favorites,
                 viewedList = viewedList,
                 viewedWallpapersLook = viewedWallpapersLook,
+                lightDarkList = lightDarkList,
                 selectedWallpaper = selectedWallpaper,
                 showSelection = isExpanded,
                 layoutPreferences = layoutPreferences,
@@ -105,7 +109,7 @@ internal fun LocalScreenContent(
                 downloadStatus = null,
                 loading = fullWallpaperLoading,
                 thumbData = selectedWallpaper?.thumbData,
-                showFullScreenAction = true,
+                isExpanded = true,
                 showInfo = showFullWallpaperInfo,
                 isFavorite = isFullWallpaperFavorite,
                 onWallpaperTransform = onFullWallpaperTransform,
@@ -124,6 +128,7 @@ internal fun LocalScreenContent(
                         onWallpaperFavoriteClick(fullWallpaper)
                     }
                 },
+                onLightDarkTypeFlagsChange = onFullWallpaperLightDarkTypeFlagsChange,
             )
         },
     )
@@ -172,6 +177,7 @@ private fun Feed(
     favorites: ImmutableList<Favorite> = persistentListOf(),
     viewedList: ImmutableList<Viewed> = persistentListOf(),
     viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    lightDarkList: ImmutableList<LightDark> = persistentListOf(),
     blurSketchy: Boolean = false,
     blurNsfw: Boolean = false,
     showSelection: Boolean = false,
@@ -196,6 +202,7 @@ private fun Feed(
                 favorites = favorites,
                 viewedList = viewedList,
                 viewedWallpapersLook = viewedWallpapersLook,
+                lightDarkList = lightDarkList,
                 blurSketchy = blurSketchy,
                 blurNsfw = blurNsfw,
                 selectedWallpaper = selectedWallpaper,

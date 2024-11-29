@@ -9,6 +9,7 @@ import com.ammar.wallflow.data.db.converters.Converters
 import com.ammar.wallflow.data.db.dao.AutoWallpaperHistoryDao
 import com.ammar.wallflow.data.db.dao.FavoriteDao
 import com.ammar.wallflow.data.db.dao.LastUpdatedDao
+import com.ammar.wallflow.data.db.dao.LightDarkDao
 import com.ammar.wallflow.data.db.dao.ObjectDetectionModelDao
 import com.ammar.wallflow.data.db.dao.RateLimitDao
 import com.ammar.wallflow.data.db.dao.ViewedDao
@@ -26,6 +27,7 @@ import com.ammar.wallflow.data.db.dao.wallpaper.WallhavenWallpapersDao
 import com.ammar.wallflow.data.db.entity.AutoWallpaperHistoryEntity
 import com.ammar.wallflow.data.db.entity.FavoriteEntity
 import com.ammar.wallflow.data.db.entity.LastUpdatedEntity
+import com.ammar.wallflow.data.db.entity.LightDarkEntity
 import com.ammar.wallflow.data.db.entity.ObjectDetectionModelEntity
 import com.ammar.wallflow.data.db.entity.RateLimitEntity
 import com.ammar.wallflow.data.db.entity.ViewedEntity
@@ -64,8 +66,9 @@ import com.ammar.wallflow.data.db.entity.wallpaper.WallhavenWallpaperEntity
         RedditWallpaperEntity::class,
         RedditSearchQueryWallpaperEntity::class,
         ViewedEntity::class,
+        LightDarkEntity::class,
     ],
-    version = 8,
+    version = 11,
     autoMigrations = [
         AutoMigration(from = 2, to = 3),
         AutoMigration(from = 4, to = 5),
@@ -75,6 +78,9 @@ import com.ammar.wallflow.data.db.entity.wallpaper.WallhavenWallpaperEntity
             spec = AutoMigration6To7::class,
         ),
         AutoMigration(from = 7, to = 8),
+        AutoMigration(from = 8, to = 9),
+        AutoMigration(from = 9, to = 10),
+        AutoMigration(from = 10, to = 11),
     ],
 )
 @TypeConverters(Converters::class)
@@ -96,4 +102,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun redditWallpapersDao(): RedditWallpapersDao
     abstract fun redditSearchQueryWallpapersDao(): RedditSearchQueryWallpapersDao
     abstract fun viewedDao(): ViewedDao
+    abstract fun lightDarkDao(): LightDarkDao
 }

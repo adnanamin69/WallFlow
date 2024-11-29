@@ -12,6 +12,7 @@ import com.ammar.wallflow.data.db.entity.wallhaven.WallhavenWallpaperTagsEntity
 import com.ammar.wallflow.data.db.entity.wallhaven.WallhavenWallpaperUploaderEntity
 import com.ammar.wallflow.data.db.entity.wallpaper.WallhavenWallpaperEntity
 import com.ammar.wallflow.data.db.entity.wallpaper.WallpaperWithUploaderAndTags
+import com.ammar.wallflow.utils.safeGetAll
 
 @Dao
 interface WallhavenWallpapersDao : WallpapersDao {
@@ -28,7 +29,7 @@ interface WallhavenWallpapersDao : WallpapersDao {
     ): WallpaperWithUploaderAndTags?
 
     @Transaction
-    @Query("SELECT * FROM wallhaven_wallpapers WHERE wallhaven_id in (:wallhavenIds)")
+    @Query("SELECT * FROM wallhaven_wallpapers WHERE wallhaven_id IN (:wallhavenIds)")
     suspend fun getAllWithUploaderAndTagsByWallhavenIds(
         wallhavenIds: Collection<String>,
     ): List<WallpaperWithUploaderAndTags>
@@ -99,15 +100,27 @@ interface WallhavenWallpapersDao : WallpapersDao {
                 FROM favorites
                 WHERE source_id = wallhaven_wallpapers.wallhaven_id
                 AND source = 'WALLHAVEN'
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM light_dark
+                WHERE source_id = wallhaven_wallpapers.wallhaven_id
+                AND source = 'WALLHAVEN'
             );
         """,
     )
     suspend fun getAllUniqueToSearchQueryId(searchQueryId: Long): List<WallhavenWallpaperEntity>
 
-    @Query("SELECT * FROM wallhaven_wallpapers WHERE wallhaven_id in (:wallhavenIds)")
-    suspend fun getAllByWallhavenIds(
+    @Query("SELECT * FROM wallhaven_wallpapers WHERE wallhaven_id IN (:wallhavenIds)")
+    suspend fun getAllByWallhavenIdsUpTo999Items(
         wallhavenIds: Collection<String>,
     ): List<WallhavenWallpaperEntity>
+
+    @Transaction
+    suspend fun getAllByWallhavenIds(wallhavenIds: Collection<String>) = safeGetAll(
+        wallhavenIds,
+        ::getAllByWallhavenIdsUpTo999Items,
+    )
 
     @Query("SELECT wallhaven_id FROM wallhaven_wallpapers")
     suspend fun getAllWallhavenIds(): List<String>
@@ -131,6 +144,12 @@ interface WallhavenWallpapersDao : WallpapersDao {
             AND NOT EXISTS (
                 SELECT 1
                 FROM favorites
+                WHERE source_id = wallhaven_wallpapers.wallhaven_id
+                AND source = 'WALLHAVEN'
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM light_dark
                 WHERE source_id = wallhaven_wallpapers.wallhaven_id
                 AND source = 'WALLHAVEN'
             );

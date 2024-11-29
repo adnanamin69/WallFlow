@@ -25,24 +25,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDropDown
-import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.ModalBottomSheetDefaults
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +63,7 @@ import com.ammar.wallflow.extensions.capitalise
 import com.ammar.wallflow.model.Detection
 import com.ammar.wallflow.model.DetectionWithBitmap
 import com.ammar.wallflow.model.WallpaperTarget
+import com.ammar.wallflow.ui.common.AdaptiveBottomSheet
 import com.ammar.wallflow.ui.theme.WallFlowTheme
 import com.ammar.wallflow.utils.DownloadStatus
 
@@ -224,7 +222,6 @@ private fun SetButton(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DetectionsBottomSheet(
     modifier: Modifier = Modifier,
@@ -232,16 +229,9 @@ internal fun DetectionsBottomSheet(
     onDetectionClick: (detection: DetectionWithBitmap) -> Unit = {},
     onDismissRequest: () -> Unit = {},
 ) {
-    val bottomSheetState = rememberModalBottomSheetState()
-
-    ModalBottomSheet(
+    AdaptiveBottomSheet(
         modifier = modifier,
         onDismissRequest = onDismissRequest,
-        sheetState = bottomSheetState,
-        properties = ModalBottomSheetDefaults.properties(
-            isFocusable = true,
-            shouldDismissOnBackPress = true,
-        ),
     ) {
         DetectionsBottomSheetContent(
             detections = detections,
@@ -268,6 +258,26 @@ internal fun DetectionsBottomSheetContent(
     }
 }
 
+@Preview
+@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
+@Composable
+fun PreviewDetectionsBottomSheetContent() {
+    WallFlowTheme {
+        Surface(
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+        ) {
+            DetectionsBottomSheetContent(
+                detections = List(5) {
+                    DetectionWithBitmap(
+                        Detection.EMPTY,
+                        Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888),
+                    )
+                },
+            )
+        }
+    }
+}
+
 @Composable
 internal fun DetectionsItem(
     modifier: Modifier = Modifier,
@@ -277,6 +287,9 @@ internal fun DetectionsItem(
     val category = detection.detection.categories.firstOrNull()
     ListItem(
         modifier = modifier.clickable(onClick = onClick),
+        colors = ListItemDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
         headlineContent = {
             Text(text = category?.label?.capitalise() ?: stringResource(R.string.entity))
         },
@@ -401,7 +414,7 @@ internal fun TopActions(
         Surface(
             modifier = Modifier.indication(
                 interactionSource = interactionSource,
-                indication = rememberRipple(
+                indication = ripple(
                     color = Color.White,
                     bounded = false,
                 ),

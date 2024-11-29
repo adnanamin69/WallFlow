@@ -63,6 +63,7 @@ import androidx.compose.ui.tooling.preview.datasource.CollectionPreviewParameter
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.ammar.wallflow.R
+import com.ammar.wallflow.model.LightDarkType
 import com.ammar.wallflow.model.Purity
 import com.ammar.wallflow.model.wallhaven.WallhavenAvatar
 import com.ammar.wallflow.model.wallhaven.WallhavenTag
@@ -78,18 +79,18 @@ import kotlinx.datetime.Clock
 fun WallpaperActions(
     modifier: Modifier = Modifier,
     downloadStatus: DownloadStatus? = null,
-    applyWallpaperEnabled: Boolean = true,
+    showApplyWallpaperAction: Boolean = true,
     showFullScreenAction: Boolean = false,
     showDownloadAction: Boolean = true,
-    showShareLinkAction: Boolean = true,
     isFavorite: Boolean = false,
-    onInfoClick: () -> Unit = {},
+    lightDarkTypeFlags: Int = LightDarkType.UNSPECIFIED,
     onDownloadClick: () -> Unit = {},
-    onShareLinkClick: () -> Unit = {},
-    onShareImageClick: () -> Unit = {},
     onApplyWallpaperClick: () -> Unit = {},
     onFullScreenClick: () -> Unit = {},
     onFavoriteToggle: (Boolean) -> Unit = {},
+    onLightDarkTypeFlagsChange: (Int) -> Unit = {},
+    onShowLightDarkInfoClick: () -> Unit = {},
+    onInfoClick: () -> Unit = {},
 ) {
     BottomAppBar(
         modifier = modifier,
@@ -109,13 +110,13 @@ fun WallpaperActions(
                     onClick = onDownloadClick,
                 )
             }
-            ShareButton(
-                showShareLinkAction = showShareLinkAction,
-                onLinkClick = onShareLinkClick,
-                onImageClick = onShareImageClick,
+            LightDarkButton(
+                typeFlags = lightDarkTypeFlags,
+                onFlagsChange = onLightDarkTypeFlagsChange,
+                onShowLightDarkInfoClick = onShowLightDarkInfoClick,
             )
         },
-        floatingActionButton = if (applyWallpaperEnabled) {
+        floatingActionButton = if (showApplyWallpaperAction) {
             {
                 ApplyWallpaperFAB(onClick = onApplyWallpaperClick)
             }
@@ -185,7 +186,7 @@ private fun FullScreenButton(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun InfoButton(
+internal fun InfoButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
@@ -200,7 +201,6 @@ private fun InfoButton(
         },
     ) {
         IconButton(
-            modifier = modifier,
             onClick = onClick,
         ) {
             Icon(

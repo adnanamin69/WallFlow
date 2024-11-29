@@ -8,7 +8,7 @@ permissions:
 on:
   push:
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
   workflow_dispatch:
 
 jobs:
@@ -50,6 +50,8 @@ jobs:
           alias: ${{ secrets.ALIAS }}
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
+        env:
+          BUILD_TOOLS_VERSION: "34.0.0"
 
       - name: Install mmv
         run: |
@@ -66,14 +68,14 @@ jobs:
       - name: Rename signed apks
         run: |
           cd ${GITHUB_WORKSPACE}/app/build/outputs/apk/base/release
-          mmv '*-unsigned*.apk' '#1#2.apk'
+          mmv '*-release-unsigned-signed.apk' '#1-${{ github.ref_name }}.apk'
           cd ${GITHUB_WORKSPACE}/app/build/outputs/apk/plus/release
-          mmv '*-unsigned*.apk' '#1#2.apk'
+          mmv '*-release-unsigned-signed.apk' '#1-${{ github.ref_name }}.apk'
 
       - uses: actions/upload-artifact@v3
         with:
           name: signed_apks_${{ github.ref_name }}
-          path: app/build/outputs/apk/*/release/*-signed.apk
+          path: app/build/outputs/apk/*/release/*-${{ github.ref_name }}.apk
 
       - name: Create Draft Release
         uses: marvinpinto/action-automatic-releases@latest
@@ -82,4 +84,4 @@ jobs:
           automatic_release_tag: "${{ github.ref_name }}"
           prerelease: false
           draft: true
-          files: app/build/outputs/apk/*/release/*-signed.apk
+          files: app/build/outputs/apk/*/release/*-${{ github.ref_name }}.apk

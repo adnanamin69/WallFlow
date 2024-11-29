@@ -6,6 +6,7 @@ import androidx.paging.PagingData
 import androidx.paging.PagingSource
 import com.ammar.wallflow.data.db.dao.AutoWallpaperHistoryDao
 import com.ammar.wallflow.data.db.dao.FavoriteDao
+import com.ammar.wallflow.data.db.dao.LightDarkDao
 import com.ammar.wallflow.data.db.dao.ObjectDetectionModelDao
 import com.ammar.wallflow.data.db.dao.ViewedDao
 import com.ammar.wallflow.data.db.dao.search.SavedSearchDao
@@ -13,6 +14,7 @@ import com.ammar.wallflow.data.db.dao.wallpaper.RedditWallpapersDao
 import com.ammar.wallflow.data.db.dao.wallpaper.WallhavenWallpapersDao
 import com.ammar.wallflow.data.db.entity.AutoWallpaperHistoryEntity
 import com.ammar.wallflow.data.db.entity.FavoriteEntity
+import com.ammar.wallflow.data.db.entity.LightDarkEntity
 import com.ammar.wallflow.data.db.entity.ObjectDetectionModelEntity
 import com.ammar.wallflow.data.db.entity.ViewedEntity
 import com.ammar.wallflow.data.db.entity.search.SavedSearchEntity
@@ -33,6 +35,7 @@ import com.ammar.wallflow.model.local.LocalWallpaper
 import com.ammar.wallflow.model.search.RedditSearch
 import com.ammar.wallflow.model.search.WallhavenSearch
 import com.ammar.wallflow.ui.screens.local.LocalSort
+import com.ammar.wallflow.workers.AutoWallpaperWorker.Companion.SourceChoice
 import kotlinx.coroutines.flow.Flow
 import okhttp3.Call
 import okhttp3.OkHttpClient
@@ -40,19 +43,17 @@ import okhttp3.Request
 import org.jsoup.nodes.Document
 
 internal open class FakeSavedSearchDao : SavedSearchDao {
-    override fun observeAll(): Flow<List<SavedSearchEntity>> {
-        throw RuntimeException()
-    }
+    override fun observeAll() = throw RuntimeException()
 
-    override suspend fun getAll(): List<SavedSearchEntity> {
-        throw RuntimeException()
-    }
+    override suspend fun getAll() = throw RuntimeException()
+
+    override suspend fun getAllByNamesUpTo999Items(
+        names: Collection<String>,
+    ) = throw RuntimeException()
 
     override suspend fun getAllByNames(
         names: Collection<String>,
-    ): List<SavedSearchEntity> {
-        throw RuntimeException()
-    }
+    ) = throw RuntimeException()
 
     override suspend fun exists(id: Long) = throw RuntimeException()
 
@@ -63,25 +64,17 @@ internal open class FakeSavedSearchDao : SavedSearchDao {
         name: String,
     ): Boolean = throw RuntimeException()
 
-    override suspend fun getById(id: Long): SavedSearchEntity? {
-        throw RuntimeException()
-    }
+    override suspend fun getById(id: Long): SavedSearchEntity? = throw RuntimeException()
 
-    override suspend fun getByName(name: String): SavedSearchEntity? {
-        throw RuntimeException()
-    }
+    override suspend fun getByName(name: String) = throw RuntimeException()
 
-    override suspend fun upsert(savedSearch: SavedSearchEntity) {
-        throw RuntimeException()
-    }
+    override suspend fun upsert(savedSearch: SavedSearchEntity) = throw RuntimeException()
 
-    override suspend fun upsert(savedSearchDaos: Collection<SavedSearchEntity>) {
-        throw RuntimeException()
-    }
+    override suspend fun upsert(
+        savedSearchDaos: Collection<SavedSearchEntity>,
+    ) = throw RuntimeException()
 
-    override suspend fun deleteByName(name: String) {
-        throw RuntimeException()
-    }
+    override suspend fun deleteByName(name: String) = throw RuntimeException()
 }
 
 internal open class FakeAutoWallpaperHistoryDao : AutoWallpaperHistoryDao {
@@ -95,6 +88,19 @@ internal open class FakeAutoWallpaperHistoryDao : AutoWallpaperHistoryDao {
         throw RuntimeException()
     }
 
+    override suspend fun getAllBySourceChoice(sourceChoice: SourceChoice) = throw RuntimeException()
+
+    override suspend fun getAllSourceIdsBySourceChoice(sourceChoice: SourceChoice): List<String> {
+        throw RuntimeException()
+    }
+
+    override suspend fun getOldestSetOnSourceIdBySourceChoiceAndSourceIdNotIn(
+        sourceChoice: SourceChoice,
+        excludedSourceIds: Collection<String>,
+    ): String? {
+        throw RuntimeException()
+    }
+
     override suspend fun getBySourceId(
         sourceId: String,
         source: Source,
@@ -103,6 +109,13 @@ internal open class FakeAutoWallpaperHistoryDao : AutoWallpaperHistoryDao {
     }
 
     override suspend fun upsert(vararg autoWallpaperHistoryEntity: AutoWallpaperHistoryEntity) {
+        throw RuntimeException()
+    }
+
+    override suspend fun deleteBySourceIdsAndSourceChoice(
+        sourceIds: Collection<String>,
+        sourceChoice: SourceChoice,
+    ) {
         throw RuntimeException()
     }
 }
@@ -183,6 +196,12 @@ internal open class FakeFavoriteDao : FavoriteDao {
 
     override fun observeExists(sourceId: String, source: Source) = throw RuntimeException()
 
+    override fun observeCount() = throw RuntimeException()
+
+    override suspend fun getCount(): Int {
+        throw RuntimeException()
+    }
+
     override suspend fun getBySourceIdAndType(
         sourceId: String,
         source: Source,
@@ -194,6 +213,14 @@ internal open class FakeFavoriteDao : FavoriteDao {
         throw RuntimeException()
     }
 
+    override suspend fun getFirstFreshExcludingIds(
+        excludingIds: Collection<Long>,
+    ): FavoriteEntity? = throw RuntimeException()
+
+    override suspend fun getByOldestSetOnAndIdsNotIn(
+        excludingIds: Collection<Long>,
+    ): FavoriteEntity? = throw RuntimeException()
+
     override suspend fun insertAll(favoriteEntities: Collection<FavoriteEntity>) {
         throw RuntimeException()
     }
@@ -202,7 +229,22 @@ internal open class FakeFavoriteDao : FavoriteDao {
         throw RuntimeException()
     }
 
-    override suspend fun deleteBySourceIdAndType(sourceId: String, source: Source) {
+    override suspend fun deleteBySourceIdAndSource(sourceId: String, source: Source) {
+        throw RuntimeException()
+    }
+
+    override suspend fun deleteBySourceIdsAndSource(sourceIds: Collection<String>, source: Source) {
+        throw RuntimeException()
+    }
+
+    override suspend fun getIdsBySourceIdsAndSource(
+        sourceIds: Collection<String>,
+        source: Source,
+    ): List<Long> {
+        throw RuntimeException()
+    }
+
+    override suspend fun getCountWhereIdsNotIn(ids: Collection<Long>): Int {
         throw RuntimeException()
     }
 }
@@ -229,6 +271,12 @@ internal open class FakeWallhavenWallpapersDao : WallhavenWallpapersDao {
     }
 
     override suspend fun getAllWithUploaderAndTags(): List<WallpaperWithUploaderAndTags> {
+        throw RuntimeException()
+    }
+
+    override suspend fun getAllByWallhavenIdsUpTo999Items(
+        wallhavenIds: Collection<String>,
+    ): List<WallhavenWallpaperEntity> {
         throw RuntimeException()
     }
 
@@ -324,7 +372,11 @@ internal open class FakeRedditWallpapersDao : RedditWallpapersDao {
 
     override suspend fun getByRedditId(redditId: String) = throw RuntimeException()
 
-    override suspend fun getByRedditIds(redditIds: List<String>) = throw RuntimeException()
+    override suspend fun getByRedditIdsUpTo999Items(
+        redditIds: Collection<String>,
+    ) = throw RuntimeException()
+
+    override suspend fun getByRedditIds(redditIds: Collection<String>) = throw RuntimeException()
 
     override suspend fun getAllRedditIds() = throw RuntimeException()
 
@@ -372,6 +424,27 @@ internal open class FakeLocalWallpapersRepository : LocalWallpapersRepository {
     ): Wallpaper? {
         throw RuntimeException()
     }
+
+    override suspend fun getFirstFresh(
+        context: Context,
+        uris: Collection<Uri>,
+        excluding: Collection<Wallpaper>,
+    ): Wallpaper? = throw RuntimeException()
+
+    override suspend fun getByOldestSetOn(
+        context: Context,
+        excluding: Collection<Wallpaper>,
+    ): Wallpaper? {
+        throw RuntimeException()
+    }
+
+    override suspend fun getCountExcludingWallpapers(
+        context: Context,
+        uris: Collection<Uri>,
+        excluding: Collection<Wallpaper>,
+    ): Int {
+        throw RuntimeException()
+    }
 }
 
 internal open class FakeViewedDao : ViewedDao {
@@ -389,4 +462,62 @@ internal open class FakeViewedDao : ViewedDao {
     override suspend fun upsert(viewedEntity: ViewedEntity) = throw RuntimeException()
 
     override suspend fun deleteAll() = throw RuntimeException()
+}
+
+internal open class FakeLightDarkDao : LightDarkDao {
+    override fun observeAll() = throw RuntimeException()
+
+    override suspend fun getAll() = throw RuntimeException()
+
+    override suspend fun getBySourceIdAndSource(
+        sourceId: String,
+        source: Source,
+    ) = throw RuntimeException()
+
+    override suspend fun getRandomByTypeFlag(typeFlags: Set<Int>) = throw RuntimeException()
+
+    override suspend fun getFirstFreshByTypeFlagsAndIdNotIn(
+        typeFlags: Set<Int>,
+        excludingIds: Collection<Long>,
+    ): LightDarkEntity? = throw RuntimeException()
+
+    override suspend fun getByOldestSetOnAndTypeFlagsAndIdsNotId(
+        typeFlags: Set<Int>,
+        excludingIds: Collection<Long>,
+    ) = throw RuntimeException()
+
+    override suspend fun getIdsBySourceIdsAndSource(
+        sourceIds: Collection<String>,
+        source: Source,
+    ): List<Long> {
+        throw RuntimeException()
+    }
+
+    override suspend fun getCountWhereTypeFlagsAndIdsNotIn(
+        typeFlags: Set<Int>,
+        ids: Collection<Long>,
+    ): Int {
+        throw RuntimeException()
+    }
+
+    // override suspend fun getAllInHistoryByTypeFlags(): List<AutoWallpaperHistoryEntity> {
+    //     throw RuntimeException()
+    // }
+
+    override fun pagingSource() = throw RuntimeException()
+
+    override fun observeTypeFlags(sourceId: String, source: Source) = throw RuntimeException()
+
+    override fun observeCount() = throw RuntimeException()
+
+    override suspend fun upsert(lightDarkEntity: LightDarkEntity) = throw RuntimeException()
+
+    override suspend fun deleteBySourceIdAndSource(
+        sourceId: String,
+        source: Source,
+    ) = throw RuntimeException()
+
+    override suspend fun insertAll(
+        lightDarkEntities: Collection<LightDarkEntity>,
+    ) = throw RuntimeException()
 }

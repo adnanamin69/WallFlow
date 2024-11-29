@@ -1,6 +1,5 @@
 package com.ammar.wallflow.ui.common
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -32,13 +31,14 @@ import com.ammar.wallflow.data.preferences.ViewedWallpapersLook
 import com.ammar.wallflow.extensions.Saver
 import com.ammar.wallflow.extensions.toDp
 import com.ammar.wallflow.model.Favorite
+import com.ammar.wallflow.model.LightDark
+import com.ammar.wallflow.model.LightDarkType
 import com.ammar.wallflow.model.Purity
 import com.ammar.wallflow.model.Viewed
 import com.ammar.wallflow.model.Wallpaper
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun WallpaperStaggeredGrid(
     modifier: Modifier = Modifier,
@@ -46,6 +46,7 @@ fun WallpaperStaggeredGrid(
     contentPadding: PaddingValues = PaddingValues(0.dp),
     wallpapers: LazyPagingItems<Wallpaper>,
     header: (LazyStaggeredGridScope.() -> Unit)? = null,
+    emptyContent: (LazyStaggeredGridScope.() -> Unit)? = null,
     blurSketchy: Boolean = false,
     blurNsfw: Boolean = false,
     selectedWallpaper: Wallpaper? = null,
@@ -58,6 +59,7 @@ fun WallpaperStaggeredGrid(
     favorites: ImmutableList<Favorite> = persistentListOf(),
     viewedList: ImmutableList<Viewed> = persistentListOf(),
     viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    lightDarkList: ImmutableList<LightDark> = persistentListOf(),
     onWallpaperClick: (wallpaper: Wallpaper) -> Unit = {},
     onWallpaperFavoriteClick: (wallpaper: Wallpaper) -> Unit = {},
 ) {
@@ -87,7 +89,10 @@ fun WallpaperStaggeredGrid(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         header?.invoke(this)
-        if (isRefreshing) {
+        if (wallpapers.itemCount == 0 && !isRefreshing) {
+            emptyContent?.invoke(this)
+        }
+        if (isRefreshing && wallpapers.itemCount == 0) {
             items(9) {
                 PlaceholderWallpaperCard()
             }
@@ -101,7 +106,7 @@ fun WallpaperStaggeredGrid(
             val wallpaper = wallpapers[index]
             wallpaper?.let {
                 WallpaperCard(
-                    modifier = Modifier.animateItemPlacement(),
+                    modifier = Modifier.animateItem(),
                     wallpaper = it,
                     blur = when (it.purity) {
                         Purity.SFW -> false
@@ -118,6 +123,9 @@ fun WallpaperStaggeredGrid(
                         v.sourceId == it.id && v.source == it.source
                     } != null,
                     viewedWallpapersLook = viewedWallpapersLook,
+                    lightDarkTypeFlags = lightDarkList.find { v ->
+                        v.sourceId == it.id && v.source == it.source
+                    }?.typeFlags ?: LightDarkType.UNSPECIFIED,
                     onClick = { onWallpaperClick(it) },
                     onFavoriteClick = { onWallpaperFavoriteClick(it) },
                 )

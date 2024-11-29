@@ -76,6 +76,8 @@
     <string name="name">Name</string>
     <string name="name_cannot_be_empty">Name cannot be empty</string>
     <string name="name_already_used">Name already used</string>
+    <string name="file_name_cannot_be_empty">File name cannot be empty</string>
+    <string name="file_name_already_used">File name already used</string>
     <string name="saved_searches">Saved searches</string>
     <string name="load_search">Load search</string>
     <string name="manager_saved_searches">Manage saved searches</string>
@@ -301,6 +303,55 @@ Auto wallpaper will almost never run at this time. It is dependent on many facto
     <string name="new_lock_screen_wallpaper">New Lock Screen Wallpaper</string>
     <string name="crop">Crop</string>
     <string name="auto_wallpaper_crop_desc">Crop wallpaper before applying.\nDisable it if you want wallpaper scrolling on home screen.</string>
+    <string name="mark_light_dark">Mark as Light or Dark</string>
+    <string name="light_dark">Light / Dark</string>
+    <string name="extra_dim">Extra Dim</string>
+    <string name="help">Help</string>
+    <string name="collections">Collections</string>
+    <string name="no_favorites">No wallpapers marked as favorite</string>
+    <string name="no_light_dark">No wallpapers marked as light or dark</string>
+    <string name="use_same_sources_homescreen_lockscreen">Use same sources for home screen and lock screen</string>
+    <string name="use_light_dark_wallpapers">Use Light / Dark wallpapers</string>
+    <string name="use_dark_with_extra_dim_desc">Allow regular dark wallpapers when \"Extra Dim\" is activated</string>
+    <string name="use_dark_with_extra_dim">Use Dark wallpapers with Extra Dim</string>
+    <string name="use_saved_searches">Use saved searches</string>
+    <string name="choose_saved_searches">Choose saved searches</string>
+    <string name="use_favorites">Use favorites</string>
+    <string name="use_local_dirs">Use local directories</string>
+    <string name="choose_local_dirs">Choose local directories</string>
+    <string name="light_dark_enabled">Light / Dark wallpapers enabled</string>
+    <string name="wallpaper_not_changed">Wallpaper not changed</string>
+    <string name="wallpaper_not_changed_with_reason">Wallpaper not changed: %s</string>
+    <string name="app_prefs_null">No application preferences found</string>
+    <string name="auto_wallpaper_disabled">Auto wallpaper disabled</string>
+    <string name="no_wallpaper_found">No wallpaper found</string>
+    <string name="auto_wallpaper_cancelled">Auto wallpaper cancelled</string>
+    <string name="url">URL</string>
+    <string name="file_name">File name</string>
+    <string name="file_name_invalid">File name invalid</string>
+    <string name="light_dark_info">Marking a wallpaper as light or dark will allow the auto wallpaper service to set light or dark wallpapers depending on the system theme.\nAfter marking, enable \'Use Light / Dark wallpapers\' in auto wallpaper sources in settings.</string>
+    <string name="download_location">Download location</string>
+    <string name="no_light_dark_found">No Light/Dark wallpapers found</string>
+    <string name="current_target_disabled">Current wallpaper target is disabled in preferences</string>
+    <string name="use_same_freq_homescreen_lockscreen">Use same frequency for home and lock screen</string>
+    <string name="next_run_approximate">Next run (approximate)</string>
+    <string name="target_activity_not_found">Target activity not found</string>
+    <string name="downloads">Downloads</string>
+    <string name="close">Close</string>
+    <string name="crash_report_line_1">Something went wrong! You can report the crash to the developer via email or by creating an issue on Github. If possible, add the steps to reproduce the crash.</string>
+    <string name="crash_report_line_2">"If you are creating a Github issue, copy the below report data and create the issue at: "</string>
+    <string name="report_data">Report data</string>
+    <string name="send_email">Send email</string>
+    <string name="oops">Oops!</string>
+    <string name="crash_reports">Crash reports</string>
+    <string name="show_crash_report_dialog">Show crash report dialog</string>
+    <string name="acra_enabled_reason">App needs to be restarted to detect crashes</string>
+    <string name="restart_required">Restart required</string>
+    <string name="restart">Restart</string>
+    <string name="no_email_app_found">No email app found</string>
+    <string name="never_show_again">Never show again</string>
+    <string name="remove_local_dir_confirm_text">This will remove any wallpaper contained in this directory from auto wallpaper history and favorites</string>
+    <string name="are_you_sure">Are you sure?</string>
     <plurals name="every_x_hrs">
         <item quantity="one">Every %d hour</item>
         <item quantity="other">Every %d hours</item>
@@ -312,5 +363,17 @@ Auto wallpaper will almost never run at this time. It is dependent on many facto
     <plurals name="num_detected_objects">
         <item quantity="one">%d object</item>
         <item quantity="other">%d objects</item>
+    </plurals>
+    <plurals name="n_searches">
+        <item quantity="one">%d search</item>
+        <item quantity="other">%d searches</item>
+    </plurals>
+    <plurals name="home_screen_sources">
+        <item quantity="one">Home screen: %d source</item>
+        <item quantity="other">Home screen: %d sources</item>
+    </plurals>
+    <plurals name="lock_screen_sources">
+        <item quantity="one">Lock screen: %d source</item>
+        <item quantity="other">Lock screen: %d sources</item>
     </plurals>
 </resources>

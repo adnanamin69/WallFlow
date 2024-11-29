@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,6 +27,7 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBar as MaterialSearchBar
 import androidx.compose.material3.SearchBarDefaults
@@ -40,7 +41,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.isTraversalGroup
@@ -51,7 +51,6 @@ import androidx.compose.ui.zIndex
 import com.ammar.wallflow.R
 import com.ammar.wallflow.extensions.toDp
 import com.ammar.wallflow.model.OnlineSource
-import com.ammar.wallflow.ui.common.bottombar.LocalBottomBarController
 
 object SearchBar {
     @Composable
@@ -59,6 +58,7 @@ object SearchBar {
         modifier: Modifier = Modifier,
         active: Boolean = false,
         useDocked: Boolean = false,
+        useFullWidth: Boolean = !useDocked,
         query: String = "",
         placeholder: @Composable (() -> Unit)? = null,
         extraLeadingContent: @Composable (() -> Unit)? = null,
@@ -86,12 +86,10 @@ object SearchBar {
             modifier
                 .semantics { isTraversalGroup = true }
                 .zIndex(1f)
-                .searchBarContainer(isDocked = useDocked),
+                .fillMaxWidth(),
         ) {
             SwitchableSearchBar(
-                modifier = Modifier
-                    .searchBar(isDocked = useDocked)
-                    .padding(bottom = 8.dp),
+                modifier = Modifier.searchBar(useFullWidth = useFullWidth),
                 useDocked = useDocked,
                 query = query,
                 onQueryChange = onQueryChange,
@@ -191,6 +189,9 @@ object SearchBar {
                 onClick = onClick,
                 onLongClick = onDeleteRequest,
             ),
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            ),
             headlineContent = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -252,37 +253,48 @@ object SearchBar {
             DockedSearchBar(
                 modifier = modifier
                     .windowInsetsPadding(topWindowInsets)
-                    .align(Alignment.TopStart),
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                active = active,
-                onActiveChange = onActiveChange,
-                placeholder = placeholder,
-                leadingIcon = leadingIcon,
-                trailingIcon = trailingIcon,
-                enabled = enabled,
+                    .align(Alignment.TopCenter)
+                    .offset(y = 16.dp),
+                inputField = {
+                    SearchBarDefaults.InputField(
+                        modifier = Modifier.fillMaxWidth(),
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSearch = onSearch,
+                        expanded = active,
+                        onExpandedChange = onActiveChange,
+                        placeholder = placeholder,
+                        leadingIcon = leadingIcon,
+                        trailingIcon = trailingIcon,
+                        enabled = enabled,
+                    )
+                },
+                colors = SearchBarDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceBright,
+                ),
+                expanded = active,
+                onExpandedChange = onActiveChange,
                 content = content,
             )
         } else {
             MaterialSearchBar(
                 modifier = modifier.align(Alignment.TopCenter),
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                active = active,
-                onActiveChange = onActiveChange,
-                placeholder = placeholder,
-                leadingIcon = leadingIcon,
-                trailingIcon = trailingIcon,
-                enabled = enabled,
+                inputField = {
+                    SearchBarDefaults.InputField(
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSearch = onSearch,
+                        expanded = active,
+                        onExpandedChange = onActiveChange,
+                        placeholder = placeholder,
+                        leadingIcon = leadingIcon,
+                        trailingIcon = trailingIcon,
+                        enabled = enabled,
+                    )
+                },
+                expanded = active,
+                onExpandedChange = onActiveChange,
                 content = content,
-                colors = SearchBarDefaults.colors(
-                    inputFieldColors = SearchBarDefaults.inputFieldColors(
-                        disabledLeadingIconColor = MaterialTheme.colorScheme.onSurface,
-                        disabledTrailingIconColor = MaterialTheme.colorScheme.onSurface,
-                    ),
-                ),
             )
         }
     }
@@ -305,26 +317,10 @@ data class Suggestion<T>(
     },
 )
 
-internal fun Modifier.searchBarContainer(
-    isDocked: Boolean = false,
-) = composed {
-    if (!isDocked) {
-        return@composed this.fillMaxWidth()
-    }
-    val bottomBarController = LocalBottomBarController.current
-    val state by bottomBarController.state
-    this
-        .fillMaxWidth(0.5f)
-        .padding(
-            start = state.size.width.toDp() + 8.dp,
-            end = 8.dp,
-        )
-}
-
 internal fun Modifier.searchBar(
-    isDocked: Boolean = false,
-) = if (!isDocked) {
-    this
-} else {
+    useFullWidth: Boolean = false,
+) = if (useFullWidth) {
     this.fillMaxWidth()
+} else {
+    this
 }

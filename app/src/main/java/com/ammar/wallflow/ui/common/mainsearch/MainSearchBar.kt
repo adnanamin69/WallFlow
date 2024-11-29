@@ -6,11 +6,9 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,16 +43,12 @@ object MainSearchBar {
     @Composable
     operator fun invoke(
         modifier: Modifier = Modifier,
-        useDocked: Boolean = false,
-        visible: Boolean = true,
         active: Boolean = false,
+        useDocked: Boolean = false,
+        useFullWidth: Boolean = false,
         search: Search = Defaults.wallhavenSearch,
         query: String = "",
         suggestions: List<Suggestion<Search>> = emptyList(),
-        // showFilters: Boolean = false,
-        deleteSuggestion: Search? = null,
-        overflowIcon: @Composable (() -> Unit)? = null,
-        // showNSFW: Boolean = false,
         showQuery: Boolean = true,
         onQueryChange: (String) -> Unit = {},
         onBackClick: (() -> Unit)? = null,
@@ -63,10 +57,6 @@ object MainSearchBar {
         onSuggestionInsert: (suggestion: Suggestion<Search>) -> Unit = {},
         onSuggestionDeleteRequest: (suggestion: Suggestion<Search>) -> Unit = {},
         onActiveChange: (active: Boolean) -> Unit = {},
-        // onShowFiltersChange: (show: Boolean) -> Unit = {},
-        // onFiltersChange: (filters: Filters) -> Unit = {},
-        onDeleteSuggestionConfirmClick: () -> Unit = {},
-        onDeleteSuggestionDismissRequest: () -> Unit = {},
         onSaveAsClick: () -> Unit = {},
         onLoadClick: () -> Unit = {},
     ) {
@@ -83,19 +73,18 @@ object MainSearchBar {
                 )
             }
         }
-        var hasError by rememberSaveable {
-            mutableStateOf(false)
-        }
+        var hasError by rememberSaveable { mutableStateOf(false) }
 
         AnimatedVisibility(
             modifier = modifier,
-            visible = visible,
+            visible = true,
             enter = fadeIn(),
             exit = fadeOut(),
         ) {
             SearchBar(
                 active = active,
                 useDocked = useDocked,
+                useFullWidth = useFullWidth,
                 placeholder = when {
                     active -> placeholder
                     else -> when (search.meta) {
@@ -134,10 +123,6 @@ object MainSearchBar {
                     ) {
                         if (it) {
                             Row {
-                                // SearchBarFiltersToggle(
-                                //     checked = showFilters,
-                                //     onCheckedChange = onShowFiltersChange,
-                                // )
                                 ActiveOverflowIcon(
                                     query = query,
                                     onSaveAsDisabled = hasError,
@@ -147,51 +132,8 @@ object MainSearchBar {
                             }
                             return@Crossfade
                         }
-                        overflowIcon?.invoke()
                     }
                 },
-                // extraContent = {
-                //     AnimatedVisibility(
-                //         modifier = Modifier.clipToBounds(),
-                //         visible = showFilters,
-                //         enter = slideInVertically(initialOffsetY = { -it }),
-                //         exit = slideOutVertically(targetOffsetY = { -it }),
-                //     ) {
-                //         Surface(
-                //             modifier = Modifier.fillMaxSize(),
-                //         ) {
-                //             EditSearchContent(
-                //                 modifier = Modifier
-                //                     .verticalScroll(rememberScrollState())
-                //                     .windowInsetsPadding(WindowInsets.ime)
-                //                     .padding(16.dp),
-                //                 showQueryField = false,
-                //                 search = search,
-                //                 showNSFW = showNSFW,
-                //                 onChange = { onFiltersChange(it.filters) },
-                //                 onErrorStateChange = { hasError = it },
-                //             )
-                //         }
-                //     }
-                // },
-            )
-        }
-
-        deleteSuggestion?.run {
-            AlertDialog(
-                title = { Text(text = this.query) },
-                text = { Text(text = stringResource(R.string.delete_suggestion_dialog_text)) },
-                confirmButton = {
-                    TextButton(onClick = onDeleteSuggestionConfirmClick) {
-                        Text(text = stringResource(R.string.confirm))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = onDeleteSuggestionDismissRequest) {
-                        Text(text = stringResource(R.string.cancel))
-                    }
-                },
-                onDismissRequest = onDeleteSuggestionDismissRequest,
             )
         }
     }

@@ -1,6 +1,7 @@
 package com.ammar.wallflow.data.repository
 
 import android.content.Context
+import android.net.Uri
 import androidx.paging.ExperimentalPagingApi
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
@@ -39,7 +40,7 @@ class FavoritesRepository @Inject constructor(
     fun observeAll() = favoriteDao.observeAll()
 
     @OptIn(ExperimentalPagingApi::class)
-    fun favoriteWallpapersPager(
+    fun wallpapersPager(
         context: Context,
         pageSize: Int = 24,
         prefetchDistance: Int = pageSize,
@@ -81,7 +82,7 @@ class FavoritesRepository @Inject constructor(
         )
         if (exists) {
             // delete it
-            favoriteDao.deleteBySourceIdAndType(
+            favoriteDao.deleteBySourceIdAndSource(
                 sourceId = sourceId,
                 source = source,
             )
@@ -118,24 +119,47 @@ class FavoritesRepository @Inject constructor(
         )
     }
 
-    suspend fun getRandom(
-        context: Context,
-    ) = withContext(ioDispatcher) {
+    suspend fun getRandom(context: Context) = withContext(ioDispatcher) {
         val entity = favoriteDao.getRandom() ?: return@withContext null
-        when (entity.source) {
-            Source.WALLHAVEN -> {
-                val wallpaperEntity = wallhavenWallpapersDao.getByWallhavenId(entity.sourceId)
-                wallpaperEntity?.toWallpaper()
-            }
-            Source.REDDIT -> {
-                val wallpaperEntity = redditWallpapersDao.getByRedditId(entity.sourceId)
-                wallpaperEntity?.toWallpaper()
-            }
-            Source.LOCAL -> localWallpapersRepository.wallpaper(
-                context = context,
-                wallpaperUriStr = entity.sourceId,
-            ).firstOrNull()?.successOr(null)
+        getWallpaperFromEntity(context, entity)
+    }
+
+    suspend fun getFirstFresh(
+        context: Context,
+        excluding: Collection<Wallpaper>,
+    ) = withContext(ioDispatcher) {
+        val entity = favoriteDao.getFirstFreshExcludingIds(
+            excludingIds = getIds(excluding),
+        ) ?: return@withContext null
+        getWallpaperFromEntity(context, entity)
+    }
+
+    suspend fun getByOldestSetOn(
+        context: Context,
+        excluding: Collection<Wallpaper>,
+    ) = withContext(ioDispatcher) {
+        val entity = favoriteDao.getByOldestSetOnAndIdsNotIn(
+            excludingIds = getIds(excluding),
+        ) ?: return@withContext null
+        getWallpaperFromEntity(context, entity)
+    }
+
+    private suspend fun getWallpaperFromEntity(
+        context: Context,
+        entity: FavoriteEntity,
+    ) = when (entity.source) {
+        Source.WALLHAVEN -> {
+            val wallpaperEntity = wallhavenWallpapersDao.getByWallhavenId(entity.sourceId)
+            wallpaperEntity?.toWallpaper()
         }
+        Source.REDDIT -> {
+            val wallpaperEntity = redditWallpapersDao.getByRedditId(entity.sourceId)
+            wallpaperEntity?.toWallpaper()
+        }
+        Source.LOCAL -> localWallpapersRepository.wallpaper(
+            context = context,
+            wallpaperUriStr = entity.sourceId,
+        ).firstOrNull()?.successOr(null)
     }
 
     suspend fun insertEntities(entities: Collection<FavoriteEntity>) = withContext(ioDispatcher) {
@@ -155,4 +179,33 @@ class FavoritesRepository @Inject constructor(
         source: Source,
         sourceId: String,
     ) = favoriteDao.observeExists(source = source, sourceId = sourceId)
+
+    fun observeCount() = favoriteDao.observeCount()
+
+    suspend fun deleteAllByUris(uris: Collection<Uri>) = withContext(ioDispatcher) {
+        favoriteDao.deleteBySourceIdsAndSource(
+            sourceIds = uris.map { it.toString() },
+            source = Source.LOCAL,
+        )
+    }
+
+    suspend fun getCountExcludingWallpapers(
+        excluding: Collection<Wallpaper>,
+    ) = withContext(ioDispatcher) {
+        val ids = getIds(excluding)
+        favoriteDao.getCountWhereIdsNotIn(ids)
+    }
+
+    suspend fun getCount(): Int = withContext(ioDispatcher) {
+        favoriteDao.getCount()
+    }
+
+    private suspend fun getIds(excluding: Collection<Wallpaper>) = excluding
+        .groupBy { it.source }
+        .flatMap { entry ->
+            favoriteDao.getIdsBySourceIdsAndSource(
+                sourceIds = entry.value.map { it.id },
+                source = entry.key,
+            )
+        }
 }

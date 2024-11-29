@@ -6,12 +6,14 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ammar.wallflow.data.db.dao.FavoriteDao
+import com.ammar.wallflow.data.db.dao.LightDarkDao
 import com.ammar.wallflow.data.db.dao.ViewedDao
 import com.ammar.wallflow.data.db.dao.search.SavedSearchDao
 import com.ammar.wallflow.data.db.dao.wallpaper.RedditWallpapersDao
 import com.ammar.wallflow.data.db.dao.wallpaper.WallhavenWallpapersDao
 import com.ammar.wallflow.data.repository.AppPreferencesRepository
 import com.ammar.wallflow.data.repository.FavoritesRepository
+import com.ammar.wallflow.data.repository.LightDarkRepository
 import com.ammar.wallflow.data.repository.SavedSearchRepository
 import com.ammar.wallflow.data.repository.ViewedRepository
 import com.ammar.wallflow.data.repository.reddit.RedditRepository
@@ -31,6 +33,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.FileNotFoundException
 import java.io.IOException
 import javax.inject.Inject
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -51,6 +54,8 @@ class BackupRestoreViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val viewedDao: ViewedDao,
     private val viewedRepository: ViewedRepository,
+    private val lightDarkDao: LightDarkDao,
+    private val lightDarkRepository: LightDarkRepository,
 ) : AndroidViewModel(
     application = application,
 ) {
@@ -84,6 +89,8 @@ class BackupRestoreViewModel @Inject constructor(
                     restoreException = null,
                 )
             }
+            // delay to show reading progress
+            delay(200)
             try {
                 val json = application.readFromUri(uri)
                 if (json == null) {
@@ -95,6 +102,8 @@ class BackupRestoreViewModel @Inject constructor(
                     }
                     return@launch
                 }
+                // delay to show reading progress
+                delay(200)
                 val backup = readBackupJson(json)
                 val restoreSummary = backup.getRestoreSummary(uri)
                 val restoreOptions = restoreSummary.getInitialRestoreOptions()
@@ -151,6 +160,7 @@ class BackupRestoreViewModel @Inject constructor(
                 redditWallpapersDao = redditWallpapersDao,
                 savedSearchDao = savedSearchDao,
                 viewedDao = viewedDao,
+                lightDarkDao = lightDarkDao,
             ) ?: return@launch
             try {
                 application.writeToUri(
@@ -215,6 +225,7 @@ class BackupRestoreViewModel @Inject constructor(
                     wallhavenWallpapersDao = wallhavenWallpapersDao,
                     redditWallpapersDao = redditWallpapersDao,
                     viewedRepository = viewedRepository,
+                    lightDarkRepository = lightDarkRepository,
                 )
                 localUiState.update {
                     it.copy(

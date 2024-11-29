@@ -8,11 +8,13 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
 import android.content.UriPermission
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapRegionDecoder
 import android.hardware.display.DisplayManager
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import android.util.DisplayMetrics
 import android.util.Log
 import android.view.Display
@@ -25,10 +27,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.FileProvider
 import androidx.core.graphics.toRect
+import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.core.provider.DocumentsContractCompat
 import androidx.work.WorkManager
 import com.ammar.wallflow.FILE_PROVIDER_AUTHORITY
+import com.ammar.wallflow.MIME_TYPE_JPEG
 import com.ammar.wallflow.R
 import com.ammar.wallflow.WEB_URL_REGEX
 import com.ammar.wallflow.model.WallpaperTarget
@@ -38,6 +42,7 @@ import com.ammar.wallflow.utils.getDecodeSampledBitmapOptions
 import com.ammar.wallflow.utils.isExternalStorageWritable
 import com.ammar.wallflow.utils.withMLModelsDir
 import com.ammar.wallflow.utils.withTempDir
+import com.lazygeniouz.dfc.file.DocumentFileCompat
 import java.io.File
 import java.io.InputStream
 import okio.buffer
@@ -122,19 +127,20 @@ fun Context.setWallpaper(
     return true
 }
 
-// fun Context.setWallpaper(
-//     inputStream: InputStream,
-//     targets: Set<WallpaperTarget> = setOf(WallpaperTarget.HOME, WallpaperTarget.LOCKSCREEN),
-// ): Boolean {
-//     if (!checkSetWallpaperPermission()) return false
-//     wallpaperManager.setStream(
-//         inputStream,
-//         null,
-//         true,
-//         targets.toWhichInt(),
-//     )
-//     return true
-// }
+fun Context.setWallpaper(
+    inputStream: InputStream,
+    rect: Rect,
+    targets: Set<WallpaperTarget> = setOf(WallpaperTarget.HOME, WallpaperTarget.LOCKSCREEN),
+): Boolean {
+    if (!checkSetWallpaperPermission()) return false
+    wallpaperManager.setStream(
+        inputStream,
+        rect.toAndroidRectF().toRect(),
+        true,
+        targets.toWhichInt(),
+    )
+    return true
+}
 
 fun Context.share(
     text: String,
@@ -154,19 +160,33 @@ fun Context.share(
     type: String,
     title: String? = null,
     grantTempPermission: Boolean = false,
-) = startActivity(getShareChooserIntent(uri, type, title, grantTempPermission))
+) = startActivity(
+    getShareChooserIntent(
+        this,
+        uri,
+        type,
+        title,
+        grantTempPermission,
+    ),
+)
 
 fun Context.getShareChooserIntent(
-    file: File,
+    file: DocumentFileCompat,
     grantTempPermission: Boolean,
 ): Intent = getShareChooserIntent(
-    uri = getUriForFile(file),
-    type = parseMimeType(file),
+    context = this,
+    uri = if (file.uri.scheme == "file") {
+        getUriForFile(file.uri.toFile())
+    } else {
+        file.uri
+    },
+    type = file.getType() ?: MIME_TYPE_JPEG,
     title = file.name,
     grantTempPermission = grantTempPermission,
 )
 
 fun getShareChooserIntent(
+    context: Context,
     uri: Uri,
     type: String,
     title: String?,
@@ -177,7 +197,7 @@ fun getShareChooserIntent(
         if (grantTempPermission) {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        clipData = ClipData.newRawUri(title, uri)
+        clipData = ClipData.newUri(context.contentResolver, title, uri)
         putExtra(Intent.EXTRA_STREAM, uri)
         setTypeAndNormalize(type)
     },
@@ -233,6 +253,12 @@ fun Context.getScreenResolution(
     )
 }
 
+fun Context.isInDefaultOrientation(): Boolean {
+    val display = displayManager.getDisplay(Display.DEFAULT_DISPLAY) ?: return true
+    val rotation = display.rotation
+    return rotation == Surface.ROTATION_0 || rotation == Surface.ROTATION_180
+}
+
 fun Context.getUriForFile(file: File): Uri = FileProvider.getUriForFile(
     this,
     FILE_PROVIDER_AUTHORITY,
@@ -280,3 +306,66 @@ fun Context.readFromUri(
     val buffer = inputStream.source().buffer()
     buffer.readUtf8()
 }
+
+fun Context.isSystemInDarkTheme(): Boolean {
+    val uiMode = resources.configuration.uiMode
+    return (uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+}
+
+fun Context.isExtraDimActive() = try {
+    Settings.Secure.getInt(
+        contentResolver,
+        "reduce_bright_colors_activated",
+        0,
+    ) == 1
+} catch (e: Exception) {
+    Log.e(TAG, "isExtraDimActive: ", e)
+    false
+}
+
+// From https://stackoverflow.com/a/46848226/1436766
+fun Context.restartApp() {
+    val intent = packageManager.getLaunchIntentForPackage(packageName) ?: return
+    val mainIntent = Intent.makeRestartActivityTask(intent.component)
+    // Required for API 34 and later
+    // Ref: https://developer.android.com/about/versions/14/behavior-changes-14#safer-intents
+    mainIntent.setPackage(packageName)
+    startActivity(mainIntent)
+    Runtime.getRuntime().exit(0)
+}
+
+fun Context.sendEmail(
+    address: String,
+    subject: String,
+    body: String,
+) {
+    try {
+        startActivity(
+            buildEmailChooserIntent(
+                title = getString(R.string.send_email),
+                address = address,
+                subject = subject,
+                body = body,
+            ).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            },
+        )
+    } catch (e: Exception) {
+        Log.e(TAG, "sendEmail: No email app found", e)
+    }
+}
+
+private fun buildEmailChooserIntent(
+    title: String,
+    address: String,
+    subject: String,
+    body: String?,
+) = Intent.createChooser(
+    Intent(Intent.ACTION_SENDTO).apply {
+        data = Uri.fromParts("mailto", address, null)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        putExtra(Intent.EXTRA_SUBJECT, subject)
+        putExtra(Intent.EXTRA_TEXT, body)
+    },
+    title,
+)

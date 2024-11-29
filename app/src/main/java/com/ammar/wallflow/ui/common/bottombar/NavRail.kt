@@ -5,6 +5,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Text
@@ -15,14 +16,14 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
-import com.ammar.wallflow.ui.screens.NavGraph
+import com.ramcosta.composedestinations.spec.Route
 
 @Composable
 fun NavRail(
     modifier: Modifier = Modifier,
     currentDestination: NavDestination? = null,
     showLocalTab: Boolean = true,
-    onItemClick: (destination: NavGraph) -> Unit = {},
+    onItemClick: (destination: Route) -> Unit = {},
 ) {
     val bottomBarController = LocalBottomBarController.current
     val state by bottomBarController.state
@@ -35,6 +36,7 @@ fun NavRail(
     ) {
         NavigationRail(
             modifier = modifier,
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
         ) {
             Spacer(Modifier.weight(1f))
             BottomBarDestination.entries

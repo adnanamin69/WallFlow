@@ -19,9 +19,10 @@ data class SystemState(
     val statusBarColor: Color = Color.Unspecified,
     val navigationBarVisible: Boolean = true,
     val navigationBarColor: Color = Color.Unspecified,
+    val isMedium: Boolean = false,
     val isExpanded: Boolean = false,
     val size: IntSize = IntSize.Zero,
-    val applyScaffoldPadding: Boolean = true,
+    val isStatusBarLight: Boolean? = null,
 )
 
 class DefaultSystemController(initialState: SystemState) : SystemController() {
@@ -36,8 +37,8 @@ class DefaultSystemController(initialState: SystemState) : SystemController() {
     override fun resetBarsState() {
         _state.value = SystemState(
             isExpanded = _state.value.isExpanded,
+            isMedium = _state.value.isMedium,
             size = _state.value.size,
-            applyScaffoldPadding = _state.value.applyScaffoldPadding,
         )
     }
 }

@@ -6,15 +6,18 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.paging.cachedIn
 import com.ammar.wallflow.data.db.entity.FavoriteEntity
+import com.ammar.wallflow.data.db.entity.LightDarkEntity
 import com.ammar.wallflow.data.db.entity.ViewedEntity
 import com.ammar.wallflow.data.db.entity.search.SavedSearchEntity
 import com.ammar.wallflow.data.db.entity.search.toSavedSearch
 import com.ammar.wallflow.data.db.entity.toFavorite
+import com.ammar.wallflow.data.db.entity.toLightDark
 import com.ammar.wallflow.data.db.entity.toViewed
 import com.ammar.wallflow.data.preferences.LayoutPreferences
 import com.ammar.wallflow.data.preferences.ViewedWallpapersLook
 import com.ammar.wallflow.data.repository.AppPreferencesRepository
 import com.ammar.wallflow.data.repository.FavoritesRepository
+import com.ammar.wallflow.data.repository.LightDarkRepository
 import com.ammar.wallflow.data.repository.SavedSearchRepository
 import com.ammar.wallflow.data.repository.ViewedRepository
 import com.ammar.wallflow.data.repository.reddit.RedditRepository
@@ -22,6 +25,7 @@ import com.ammar.wallflow.data.repository.utils.Resource
 import com.ammar.wallflow.data.repository.utils.successOr
 import com.ammar.wallflow.data.repository.wallhaven.WallhavenRepository
 import com.ammar.wallflow.model.Favorite
+import com.ammar.wallflow.model.LightDark
 import com.ammar.wallflow.model.OnlineSource
 import com.ammar.wallflow.model.Purity
 import com.ammar.wallflow.model.Viewed
@@ -37,7 +41,7 @@ import com.ammar.wallflow.model.search.WallhavenSearch
 import com.ammar.wallflow.model.search.WallhavenSorting
 import com.ammar.wallflow.model.search.WallhavenTopRange
 import com.ammar.wallflow.model.wallhaven.WallhavenTag
-import com.ammar.wallflow.ui.screens.navArgs
+import com.ammar.wallflow.navArgs
 import com.github.materiiapps.partial.Partialize
 import com.github.materiiapps.partial.getOrElse
 import com.github.materiiapps.partial.partial
@@ -75,6 +79,7 @@ class HomeViewModel @Inject constructor(
     private val savedSearchRepository: SavedSearchRepository,
     private val favoritesRepository: FavoritesRepository,
     viewedRepository: ViewedRepository,
+    lightDarkRepository: LightDarkRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
     private val mainSearch = savedStateHandle.navArgs<HomeScreenNavArgs>().search
@@ -157,6 +162,7 @@ class HomeViewModel @Inject constructor(
         savedSearchRepository.observeAll(),
         favoritesRepository.observeAll(),
         viewedRepository.observeAll(),
+        lightDarkRepository.observeAll(),
     ) {
             tags,
             homeSearch,
@@ -165,6 +171,7 @@ class HomeViewModel @Inject constructor(
             savedSearchEntities,
             favorites,
             viewedList,
+            lightDarkList,
         ->
         local.merge(
             HomeUiState(
@@ -195,6 +202,7 @@ class HomeViewModel @Inject constructor(
                 favorites = favorites.map(FavoriteEntity::toFavorite).toImmutableList(),
                 viewedList = viewedList.map(ViewedEntity::toViewed).toImmutableList(),
                 viewedWallpapersLook = appPreferences.viewedWallpapersPreferences.look,
+                lightDarkList = lightDarkList.map(LightDarkEntity::toLightDark).toImmutableList(),
                 sources = appPreferences.homeSources.toImmutableMap(),
                 prevMainWallhavenSearch = appPreferences.mainWallhavenSearch,
                 prevMainRedditSearch = appPreferences.mainRedditSearch,
@@ -244,8 +252,14 @@ class HomeViewModel @Inject constructor(
         )
     }
 
-    fun showSavedSearches(show: Boolean = true) = localUiState.update {
-        it.copy(showSavedSearchesDialog = partial(show))
+    fun showSavedSearches(
+        show: Boolean = true,
+        isFromSearchBar: Boolean = false,
+    ) = localUiState.update {
+        it.copy(
+            showSavedSearchesDialog = partial(show),
+            showSavedSearchesForSearchBar = partial(isFromSearchBar),
+        )
     }
 
     fun toggleFavorite(wallpaper: Wallpaper) = viewModelScope.launch {
@@ -389,10 +403,12 @@ data class HomeUiState(
     val showNSFW: Boolean = false,
     val selectedWallpaper: Wallpaper? = null,
     val showSavedSearchesDialog: Boolean = false,
+    val showSavedSearchesForSearchBar: Boolean = false,
     val layoutPreferences: LayoutPreferences = LayoutPreferences(),
     val favorites: ImmutableList<Favorite> = persistentListOf(),
     val viewedList: ImmutableList<Viewed> = persistentListOf(),
     val viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    val lightDarkList: ImmutableList<LightDark> = persistentListOf(),
     val showRedditInitDialog: Boolean = false,
     val manageSourcesState: ManageSourcesState = ManageSourcesState(),
     val prevMainWallhavenSearch: WallhavenSearch? = null,

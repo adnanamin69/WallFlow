@@ -8,6 +8,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,7 +48,9 @@ fun <T> Dropdown(
         onExpandedChange = { expanded = !expanded },
     ) {
         OutlinedTextField(
-            modifier = Modifier.menuAnchor(),
+            modifier = Modifier.menuAnchor(
+                type = MenuAnchorType.PrimaryNotEditable,
+            ),
             readOnly = true,
             value = selectedOption?.text ?: "",
             onValueChange = {},
@@ -126,15 +129,19 @@ fun <T> DropdownMultiple(
     modifier: Modifier = Modifier,
     label: @Composable (() -> Unit)? = null,
     options: Set<DropdownOption<T>> = emptySet(),
-    initialSelectedOptions: Set<T>? = null,
+    selected: Set<T> = emptySet(),
     emptyOptionsMessage: String? = null,
+    showOptionClearAction: Boolean = true,
     placeholder: @Composable (() -> Unit)? = null,
     onChange: (value: Set<T>) -> Unit = {},
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var selectedOptions by remember {
-        val selected = options.filter {
-            initialSelectedOptions?.contains(it.value) == true
+    val selectedOptions = remember(
+        options,
+        selected,
+    ) {
+        options.filter {
+            selected.contains(it.value)
         }.ifEmpty {
             val first = options.firstOrNull()
             if (first == null) {
@@ -143,7 +150,6 @@ fun <T> DropdownMultiple(
                 setOf(first)
             }
         }.toSet()
-        mutableStateOf(selected)
     }
 
     ExposedDropdownMenuBox(
@@ -152,17 +158,19 @@ fun <T> DropdownMultiple(
         onExpandedChange = { expanded = !expanded },
     ) {
         TagInputField(
-            modifier = Modifier.menuAnchor(),
+            modifier = Modifier.menuAnchor(
+                type = MenuAnchorType.PrimaryNotEditable,
+            ),
             readOnly = true,
             tags = selectedOptions,
             label = label,
+            showTagClearAction = showOptionClearAction,
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = ExposedDropdownMenuDefaults.textFieldColors(),
             placeholder = placeholder,
             getTagString = { it.text },
             onRemoveTag = {
-                selectedOptions -= it
-                onChange(selectedOptions.map { o -> o.value }.toSet())
+                onChange((selectedOptions - it).map { o -> o.value }.toSet())
             },
             getLeadingIcon = { it.icon },
         )
@@ -174,12 +182,12 @@ fun <T> DropdownMultiple(
                 DropdownMenuItem(
                     text = { Text(option.text) },
                     onClick = {
-                        selectedOptions = if (option in selectedOptions) {
+                        val updated = if (option in selectedOptions) {
                             selectedOptions - option
                         } else {
                             selectedOptions + option
                         }
-                        onChange(selectedOptions.map { it.value }.toSet())
+                        onChange(updated.map { it.value }.toSet())
                     },
                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                     leadingIcon = option.icon,

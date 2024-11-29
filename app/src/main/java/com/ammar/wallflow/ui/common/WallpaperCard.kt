@@ -6,8 +6,10 @@ import androidx.compose.animation.animateColor
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
@@ -51,7 +53,9 @@ import com.ammar.wallflow.R
 import com.ammar.wallflow.data.preferences.ViewedWallpapersLook
 import com.ammar.wallflow.extensions.TAG
 import com.ammar.wallflow.extensions.aspectRatio
+import com.ammar.wallflow.model.LightDarkType
 import com.ammar.wallflow.model.Wallpaper
+import com.ammar.wallflow.model.isUnspecified
 import com.ammar.wallflow.model.wallhaven.WallhavenWallpaper
 import com.ammar.wallflow.model.wallhaven.wallhavenWallpaper1
 import com.ammar.wallflow.ui.theme.WallFlowTheme
@@ -73,6 +77,7 @@ fun WallpaperCard(
     isFavorite: Boolean = false,
     isViewed: Boolean = false,
     viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    lightDarkTypeFlags: Int = LightDarkType.UNSPECIFIED,
     onClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
 ) {
@@ -210,19 +215,27 @@ fun WallpaperCard(
                 text = stringResource(R.string.viewed),
             )
         }
-        if (isViewed && viewedWallpapersLook in setOf(
-                ViewedWallpapersLook.DIM_WITH_ICON,
-                ViewedWallpapersLook.ICON,
-            )
+        Row(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(
+                    top = 8.dp,
+                    start = 8.dp,
+                ),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            CardViewedIcon(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(
-                        start = 8.dp,
-                        bottom = 8.dp,
-                    ),
-            )
+            if (isViewed && viewedWallpapersLook in setOf(
+                    ViewedWallpapersLook.DIM_WITH_ICON,
+                    ViewedWallpapersLook.ICON,
+                )
+            ) {
+                CardViewedIcon(modifier = Modifier)
+            }
+            if (!lightDarkTypeFlags.isUnspecified()) {
+                CardLightDarkIcon(
+                    typeFlags = lightDarkTypeFlags,
+                )
+            }
         }
         CardFavoriteButton(
             modifier = Modifier
@@ -263,6 +276,7 @@ private data class Props(
     val isFavorite: Boolean = false,
     val isViewed: Boolean = false,
     val viewedWallpapersLook: ViewedWallpapersLook = ViewedWallpapersLook.DIM_WITH_LABEL,
+    val lightDarkTypeFlags: Int = LightDarkType.UNSPECIFIED,
 )
 
 private class PreviewProps : CollectionPreviewParameterProvider<Props>(
@@ -273,6 +287,12 @@ private class PreviewProps : CollectionPreviewParameterProvider<Props>(
         Props(isSelected = true),
         Props(isFavorite = true),
         Props(isViewed = true),
+        Props(lightDarkTypeFlags = LightDarkType.DARK),
+        Props(
+            isViewed = true,
+            viewedWallpapersLook = ViewedWallpapersLook.ICON,
+            lightDarkTypeFlags = LightDarkType.DARK,
+        ),
     ),
 )
 
@@ -289,6 +309,7 @@ private fun PreviewWallpaperCard(
         isFavorite,
         isViewed,
         viewedWallpapersLook,
+        lightDarkTypeFlags,
     ) = props
     WallFlowTheme {
         WallpaperCard(
@@ -301,6 +322,7 @@ private fun PreviewWallpaperCard(
             isFavorite = isFavorite,
             isViewed = isViewed,
             viewedWallpapersLook = viewedWallpapersLook,
+            lightDarkTypeFlags = lightDarkTypeFlags,
         )
     }
 }

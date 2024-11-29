@@ -30,7 +30,7 @@
     <string name="anime">"Аниме"</string>
     <string name="people">"Люди"</string>
     <string name="sfw">SFW</string>
-    <string name="sketchy">"Скетчи"</string>
+    <string name="sketchy">Сомнительные</string>
     <string name="nsfw">NSFW</string>
     <string name="descending">"По убыванию"</string>
     <string name="ascending">"По возрастанию"</string>
@@ -151,7 +151,7 @@
     <string name="sorting">"Сортировка"</string>
     <string name="top_range">"Топ"</string>
     <string name="order">"Давние"</string>
-    <string name="custom">"Своя…"</string>
+    <string name="custom">Пользовательское…</string>
     <string name="no_browser_found">"Браузер не найден!"</string>
     <string name="cropped_image">"Обрезанное изображение"</string>
     <string name="model_download_title">"Модель машинного обучения: %1s"</string>
@@ -170,7 +170,7 @@
     <string name="delete_suggestion_dialog_text">"Удалить из истории?"</string>
     <string name="url_cannot_be_empty">"URL не может быть пустым"</string>
     <string name="invalid_url">"Неверный URL"</string>
-    <string name="blur_sketchy_wallpapers">"Размывать скетчи"</string>
+    <string name="blur_sketchy_wallpapers">Размывать сомнительные обои</string>
     <string name="blur_nsfw_wallpapers">"Размывать NSFW обои"</string>
     <string name="enable_object_detection">"Включить обнаружение объектов"</string>
     <string name="tflite_delegate">"Делегат TFLite"</string>
@@ -240,7 +240,7 @@
     <string name="backup_failed">"Резервное копирование не удалось!"</string>
     <string name="restore_done">"Восстановление выполнено!"</string>
     <string name="restore_failed">"Восстановление не удалось!"</string>
-    <string name="mark_as_favorite">"Отменить как избранное"</string>
+    <string name="mark_as_favorite">Отметить как избранное</string>
     <string name="auto_wallpaper_mark_as_favorite_desc">"Отметить обои как избранные при использовании для смены обоев"</string>
     <string name="auto_wallpaper_download_desc">"Загрузка обоев при их использовании для смены обоев"</string>
     <string name="change_wallpaper_tile_label">"Изменить обои"</string>
@@ -316,7 +316,57 @@
     <string name="new_home_screen_wallpaper">Новые обои главного экрана</string>
     <string name="set_different_wallapers_desc">Для главного экрана и экрана блокировки будут установлены разные обои</string>
     <string name="set_different_wallapers">Установить разные обои</string>
-    <string name="crop">Обрезать</string>
+    <string name="crop">Обрезка</string>
     <string name="auto_wallpaper_crop_desc">Обрезать обои перед установкой.
 \nОтключите обрезку, если хотите, чтобы обои на главном экране прокручивались.</string>
+    <string name="file_name_cannot_be_empty">Название файла не может быть пустым</string>
+    <string name="file_name_already_used">Данное название файла уже используется</string>
+    <string name="mark_light_dark">Отметить как светлую или тёмную</string>
+    <string name="light_dark">Светлые / Тёмные</string>
+    <string name="help">Справка</string>
+    <string name="collections">Коллекции</string>
+    <string name="use_light_dark_wallpapers">Использовать Светлые / Тёмные обои</string>
+    <string name="use_dark_with_extra_dim">Использовать тёмные обои с функцией «Дополнительного затемнения»</string>
+    <string name="choose_saved_searches">Выберите сохранённые поисковые запросы</string>
+    <string name="use_favorites">Использовать избранные</string>
+    <string name="use_local_dirs">Использовать локальные каталоги</string>
+    <string name="choose_local_dirs">Выберите локальные каталоги</string>
+    <string name="light_dark_enabled">Светлые / Тёмные обои включены</string>
+    <string name="wallpaper_not_changed">Обои не сменились</string>
+    <string name="wallpaper_not_changed_with_reason">Обои не сменились: %s</string>
+    <string name="app_prefs_null">Настройки приложения не найдены</string>
+    <string name="auto_wallpaper_disabled">Смена обоев отключена</string>
+    <string name="auto_wallpaper_cancelled">Смена обоев отменена</string>
+    <string name="url">URL</string>
+    <string name="file_name_invalid">Имя файла неверно</string>
+    <string name="extra_dim">«Дополнительное затемнение»</string>
+    <string name="no_favorites">Нет обоев, отмеченных как избранные</string>
+    <string name="no_light_dark">Нет обоев, помеченных как светлые или тёмные</string>
+    <string name="use_same_sources_homescreen_lockscreen">Использовать одинаковые источники для главного экрана и экрана блокировки</string>
+    <string name="file_name">Имя файла</string>
+    <string name="use_dark_with_extra_dim_desc">Разрешить обычные тёмные обои при активации «Дополнительного затемнения»</string>
+    <string name="no_wallpaper_found">Обои не найдены</string>
+    <string name="use_saved_searches">Использовать сохранённые поисковые запросы</string>
+    <string name="light_dark_info">Назначение обоев как светлых или тёмных позволит службе смены обоев устанавливать светлые или тёмные обои в зависимости от темы системы.
+\nПосле назначения включите «Использовать светлые / тёмные обои» в настройках источников для смены обоев.</string>
+    <plurals name="n_searches">
+        <item quantity="one">%d поисковый запрос</item>
+        <item quantity="few">%d поисковых запроса</item>
+        <item quantity="many">%d поисковых запросов</item>
+        <item quantity="other">%d поисковых запросов</item>
+    </plurals>
+    <plurals name="home_screen_sources">
+        <item quantity="one">Главный экран: %d источник</item>
+        <item quantity="few">Главный экран: %d источника</item>
+        <item quantity="many">Главный экран: %d источников</item>
+        <item quantity="other">Главный экран: %d источников</item>
+    </plurals>
+    <plurals name="lock_screen_sources">
+        <item quantity="one">Экран блокировки: %d источник</item>
+        <item quantity="few">Экран блокировки: %d источника</item>
+        <item quantity="many">Экран блокировки: %d источников</item>
+        <item quantity="other">Экран блокировки: %d источников</item>
+    </plurals>
+    <string name="download_location">Место загрузки</string>
+    <string name="no_light_dark_found">Светлых/тёмных обоев не найдено</string>
 </resources>

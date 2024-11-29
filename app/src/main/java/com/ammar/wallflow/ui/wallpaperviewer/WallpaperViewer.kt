@@ -6,15 +6,21 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -26,18 +32,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.ScaleFactor
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ErrorResult
@@ -47,30 +56,33 @@ import coil.request.NullRequestDataException
 import coil.size.Scale
 import com.ammar.wallflow.R
 import com.ammar.wallflow.extensions.TAG
-import com.ammar.wallflow.extensions.aspectRatio
 import com.ammar.wallflow.extensions.openUrl
 import com.ammar.wallflow.extensions.toDp
 import com.ammar.wallflow.extensions.toast
 import com.ammar.wallflow.extensions.wallpaperManager
 import com.ammar.wallflow.model.DownloadableWallpaper
+import com.ammar.wallflow.model.LightDarkType
 import com.ammar.wallflow.model.Wallpaper
 import com.ammar.wallflow.model.reddit.RedditWallpaper
 import com.ammar.wallflow.model.reddit.withRedditDomainPrefix
 import com.ammar.wallflow.model.wallhaven.WallhavenTag
 import com.ammar.wallflow.model.wallhaven.WallhavenUploader
 import com.ammar.wallflow.model.wallhaven.WallhavenWallpaper
+import com.ammar.wallflow.ui.common.TopBar
 import com.ammar.wallflow.ui.common.bottomWindowInsets
 import com.ammar.wallflow.ui.common.permissions.DownloadPermissionsRationalDialog
 import com.ammar.wallflow.ui.common.permissions.rememberDownloadPermissionsState
+import com.ammar.wallflow.ui.screens.wallpaper.LightDarkInfoDialog
+import com.ammar.wallflow.ui.screens.wallpaper.ShareButton
 import com.ammar.wallflow.ui.screens.wallpaper.WallpaperActions
 import com.ammar.wallflow.ui.screens.wallpaper.WallpaperInfoBottomSheet
 import com.ammar.wallflow.utils.DownloadStatus
 import java.net.SocketTimeoutException
-import kotlin.math.roundToInt
 import me.saket.telephoto.zoomable.ZoomSpec
 import me.saket.telephoto.zoomable.rememberZoomableState
 import me.saket.telephoto.zoomable.zoomable
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WallpaperViewer(
     modifier: Modifier = Modifier,
@@ -80,8 +92,10 @@ fun WallpaperViewer(
     loading: Boolean = false,
     thumbData: String? = null,
     showInfo: Boolean = false,
-    showFullScreenAction: Boolean = false,
+    isExpanded: Boolean = false,
     isFavorite: Boolean = false,
+    showBackButton: Boolean = false,
+    lightDarkTypeFlags: Int = LightDarkType.UNSPECIFIED,
     onWallpaperTransform: () -> Unit = {},
     onWallpaperTap: () -> Unit = {},
     onInfoClick: () -> Unit = {},
@@ -94,45 +108,49 @@ fun WallpaperViewer(
     onTagClick: (WallhavenTag) -> Unit = {},
     onUploaderClick: (WallhavenUploader) -> Unit = {},
     onFavoriteToggle: (Boolean) -> Unit = {},
+    onBackClick: () -> Unit = {},
+    onLightDarkTypeFlagsChange: (Int) -> Unit = {},
 ) {
     val clipboardManager = LocalClipboardManager.current
+    val layoutDirection = LocalLayoutDirection.current
     var showRationale by rememberSaveable { mutableStateOf(false) }
     var containerIntSize by remember { mutableStateOf(IntSize.Zero) }
+    var showLightDarkInfo by rememberSaveable { mutableStateOf(false) }
 
     val downloadPermissionsState = rememberDownloadPermissionsState(
         onShowRationale = { showRationale = true },
         onGranted = onDownloadPermissionsGranted,
     )
 
-    val imageSize: IntSize by produceState(
-        initialValue = IntSize.Zero,
-        key1 = wallpaper?.resolution,
-        key2 = containerIntSize,
-    ) {
-        val resolution = wallpaper?.resolution
-        if (resolution == null) {
-            value = IntSize.Zero
-            return@produceState
-        }
-        val containerWidth = containerIntSize.width
-        val containerHeight = containerIntSize.height
-        val containerAspectRatio = containerWidth.toFloat() / containerHeight
-        val imageAspectRatio = resolution.aspectRatio
-        value = when {
-            containerAspectRatio == imageAspectRatio -> IntSize(
-                containerWidth,
-                containerHeight,
-            )
-            containerAspectRatio < imageAspectRatio -> IntSize(
-                containerWidth,
-                (containerWidth / imageAspectRatio).roundToInt(),
-            )
-            else -> IntSize(
-                (containerHeight * imageAspectRatio).roundToInt(),
-                containerHeight,
-            )
-        }
-    }
+    // val imageSize: IntSize by produceState(
+    //     initialValue = IntSize.Zero,
+    //     key1 = wallpaper?.resolution,
+    //     key2 = containerIntSize,
+    // ) {
+    //     val resolution = wallpaper?.resolution
+    //     if (resolution == null) {
+    //         value = IntSize.Zero
+    //         return@produceState
+    //     }
+    //     val containerWidth = containerIntSize.width
+    //     val containerHeight = containerIntSize.height
+    //     val containerAspectRatio = containerWidth.toFloat() / containerHeight
+    //     val imageAspectRatio = resolution.aspectRatio
+    //     value = when {
+    //         containerAspectRatio == imageAspectRatio -> IntSize(
+    //             containerWidth,
+    //             containerHeight,
+    //         )
+    //         containerAspectRatio < imageAspectRatio -> IntSize(
+    //             containerWidth,
+    //             (containerWidth / imageAspectRatio).roundToInt(),
+    //         )
+    //         else -> IntSize(
+    //             (containerHeight * imageAspectRatio).roundToInt(),
+    //             containerHeight,
+    //         )
+    //     }
+    // }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val listener = remember {
@@ -156,17 +174,21 @@ fun WallpaperViewer(
         initialValue = null as ImageRequest?,
         key1 = context,
         key2 = wallpaper?.data,
-        key3 = listOf(thumbData, imageSize, listener),
+        key3 = listOf(
+            thumbData,
+            // imageSize,
+            listener,
+        ),
     ) {
-        if (wallpaper?.data == null && thumbData == null) {
-            return@produceState
-        }
+        // if (wallpaper?.data == null && thumbData == null) {
+        //     return@produceState
+        // }
         value = ImageRequest.Builder(context).apply {
             data(wallpaper?.data ?: thumbData)
             placeholderMemoryCacheKey(thumbData)
-            if (imageSize != IntSize.Zero) {
-                size(imageSize.width, imageSize.height)
-            }
+            // if (imageSize != IntSize.Zero) {
+            //     size(imageSize.width, imageSize.height)
+            // }
             scale(Scale.FIT)
             crossfade(true)
             lifecycle(lifecycleOwner)
@@ -180,6 +202,10 @@ fun WallpaperViewer(
         ),
     )
     var hasTransformed by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(wallpaper?.data) {
+        zoomableState.resetZoom(false)
+    }
 
     LaunchedEffect(zoomableState.contentTransformation, painter) {
         val scale = zoomableState.contentTransformation.scale
@@ -206,6 +232,22 @@ fun WallpaperViewer(
     Box(
         modifier = modifier
             .fillMaxSize()
+            .then(
+                if (isExpanded) {
+                    Modifier
+                        .windowInsetsPadding(WindowInsets.systemBars)
+                        .padding(
+                            top = 16.dp,
+                            bottom = 16.dp,
+                            end = if (layoutDirection == LayoutDirection.Ltr) 16.dp else 0.dp,
+                            start = if (layoutDirection == LayoutDirection.Rtl) 16.dp else 0.dp,
+                        )
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceBright)
+                } else {
+                    Modifier
+                },
+            )
             .onSizeChanged { containerIntSize = it },
     ) {
         Crossfade(
@@ -215,7 +257,7 @@ fun WallpaperViewer(
         ) {
             val imageRequest = it.request
             if (
-                showFullScreenAction && // means two pane mode
+                isExpanded && // means two pane mode
                 it.state !is AsyncImagePainter.State.Loading &&
                 imageRequest.data is NullRequestData
             ) {
@@ -230,7 +272,9 @@ fun WallpaperViewer(
                     .zoomable(
                         state = zoomableState,
                         onClick = { _ ->
-                            if (it.state !is AsyncImagePainter.State.Success) return@zoomable
+                            if (it.state !is AsyncImagePainter.State.Success) {
+                                return@zoomable
+                            }
                             onWallpaperTap()
                         },
                     ),
@@ -249,34 +293,71 @@ fun WallpaperViewer(
         ) {
             WallpaperActions(
                 downloadStatus = downloadStatus,
-                applyWallpaperEnabled = applyWallpaperEnabled,
-                showFullScreenAction = showFullScreenAction,
+                showApplyWallpaperAction = applyWallpaperEnabled,
+                showFullScreenAction = isExpanded,
                 showDownloadAction = wallpaper is DownloadableWallpaper,
-                showShareLinkAction = wallpaper is WallhavenWallpaper ||
-                    wallpaper is RedditWallpaper,
                 isFavorite = isFavorite,
-                onInfoClick = onInfoClick,
+                lightDarkTypeFlags = lightDarkTypeFlags,
                 onDownloadClick = { downloadPermissionsState.launchMultiplePermissionRequest() },
-                onShareLinkClick = onShareLinkClick,
-                onShareImageClick = onShareImageClick,
                 onApplyWallpaperClick = onApplyWallpaperClick,
                 onFullScreenClick = onFullScreenClick,
                 onFavoriteToggle = onFavoriteToggle,
+                onLightDarkTypeFlagsChange = onLightDarkTypeFlagsChange,
+                onShowLightDarkInfoClick = { showLightDarkInfo = true },
+                onInfoClick = onInfoClick,
             )
         }
 
-        AnimatedVisibility(
-            modifier = Modifier
-                .size(60.dp)
-                .align(Alignment.Center),
-            visible = loading || painter.state is AsyncImagePainter.State.Loading,
-            enter = fadeIn(),
-            exit = fadeOut(),
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.fillMaxSize(),
-            )
-        }
+        // AnimatedVisibility(
+        //     modifier = Modifier
+        //         .size(60.dp)
+        //         .align(Alignment.Center),
+        //     visible = loading || painter.state is AsyncImagePainter.State.Loading,
+        //     enter = fadeIn(),
+        //     exit = fadeOut(),
+        // ) {
+        //     CircularProgressIndicator(
+        //         modifier = Modifier.fillMaxSize(),
+        //     )
+        // }
+
+        TopBar(
+            windowInsets = if (isExpanded) {
+                WindowInsets(top = 0)
+            } else {
+                TopAppBarDefaults.windowInsets
+            },
+            visible = if (isExpanded) {
+                painter.state is AsyncImagePainter.State.Success &&
+                    painter.request.data == wallpaper?.data &&
+                    actionsVisible
+            } else {
+                actionsVisible
+            },
+            gradientBg = if (showBackButton) {
+                true
+            } else {
+                painter.state is AsyncImagePainter.State.Success &&
+                    painter.request.data == wallpaper?.data
+            },
+            showBackButton = showBackButton,
+            onBackClick = onBackClick,
+            actions = {
+                AnimatedVisibility(
+                    visible = painter.state is AsyncImagePainter.State.Success &&
+                        painter.request.data == wallpaper?.data,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    ShareButton(
+                        showShareLinkAction = wallpaper is WallhavenWallpaper ||
+                            wallpaper is RedditWallpaper,
+                        onLinkClick = onShareLinkClick,
+                        onImageClick = onShareImageClick,
+                    )
+                }
+            },
+        )
     }
 
     if (showInfo) {
@@ -308,6 +389,12 @@ fun WallpaperViewer(
         DownloadPermissionsRationalDialog(
             permissions = downloadPermissionsState.shouldShowRationale.keys.map { it.permission },
             onConfirmOrDismiss = { showRationale = false },
+        )
+    }
+
+    if (showLightDarkInfo) {
+        LightDarkInfoDialog(
+            onDismissRequest = { showLightDarkInfo = false },
         )
     }
 }

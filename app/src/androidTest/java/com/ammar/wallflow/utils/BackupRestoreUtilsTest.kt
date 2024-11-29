@@ -13,6 +13,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ammar.wallflow.MockFactory
 import com.ammar.wallflow.data.db.AppDatabase
 import com.ammar.wallflow.data.db.dao.FavoriteDao
+import com.ammar.wallflow.data.db.dao.LightDarkDao
 import com.ammar.wallflow.data.db.dao.ViewedDao
 import com.ammar.wallflow.data.db.dao.search.SavedSearchDao
 import com.ammar.wallflow.data.db.dao.wallhaven.WallhavenTagsDao
@@ -20,24 +21,24 @@ import com.ammar.wallflow.data.db.dao.wallhaven.WallhavenUploadersDao
 import com.ammar.wallflow.data.db.dao.wallpaper.RedditWallpapersDao
 import com.ammar.wallflow.data.db.dao.wallpaper.WallhavenWallpapersDao
 import com.ammar.wallflow.data.db.entity.FavoriteEntity
+import com.ammar.wallflow.data.db.entity.LightDarkEntity
 import com.ammar.wallflow.data.db.entity.ViewedEntity
-import com.ammar.wallflow.data.db.entity.wallhaven.WallhavenWallpaperTagsEntity
-import com.ammar.wallflow.data.db.entity.wallpaper.RedditWallpaperEntity
-import com.ammar.wallflow.data.db.entity.wallpaper.WallhavenWallpaperEntity
-import com.ammar.wallflow.data.network.model.reddit.toWallpaperEntities
-import com.ammar.wallflow.data.network.model.wallhaven.toEntity
-import com.ammar.wallflow.data.network.model.wallhaven.toWallpaperEntity
 import com.ammar.wallflow.data.preferences.AutoWallpaperPreferences
 import com.ammar.wallflow.data.repository.AppPreferencesRepository
 import com.ammar.wallflow.data.repository.FavoritesRepository
+import com.ammar.wallflow.data.repository.LightDarkRepository
 import com.ammar.wallflow.data.repository.SavedSearchRepository
 import com.ammar.wallflow.data.repository.ViewedRepository
 import com.ammar.wallflow.data.repository.reddit.DefaultRedditRepository
 import com.ammar.wallflow.data.repository.wallhaven.DefaultWallhavenRepository
+import com.ammar.wallflow.insertRedditEntities as actualInsertRedditEntities
+import com.ammar.wallflow.insertWallhavenEntities as actualInsertWallhavenEntities
 import com.ammar.wallflow.json
+import com.ammar.wallflow.model.LightDarkType
 import com.ammar.wallflow.model.OnlineSource
 import com.ammar.wallflow.model.Purity
 import com.ammar.wallflow.model.Source
+import com.ammar.wallflow.model.backup.Backup
 import com.ammar.wallflow.model.backup.BackupOptions
 import com.ammar.wallflow.model.backup.BackupV1
 import com.ammar.wallflow.model.search.Filters
@@ -84,6 +85,7 @@ class BackupRestoreUtilsTest {
     private lateinit var favoriteDao: FavoriteDao
     private lateinit var savedSearchDao: SavedSearchDao
     private lateinit var viewedDao: ViewedDao
+    private lateinit var lightDarkDao: LightDarkDao
     private val random = Random(1000)
     private val clock = TestClock(now = Instant.fromEpochMilliseconds(1694954538))
 
@@ -101,6 +103,7 @@ class BackupRestoreUtilsTest {
         favoriteDao = fakeDb.favoriteDao()
         savedSearchDao = fakeDb.savedSearchDao()
         viewedDao = fakeDb.viewedDao()
+        lightDarkDao = fakeDb.lightDarkDao()
     }
 
     @After
@@ -137,6 +140,33 @@ class BackupRestoreUtilsTest {
         }
         favoriteDao.insertAll(favoriteEntities)
 
+        // mark light/dark 4 wallhaven and reddit wallpapers
+        val possibleLightDarkTypes = setOf(
+            LightDarkType.LIGHT,
+            LightDarkType.DARK,
+            LightDarkType.EXTRA_DIM,
+        )
+        val lightDarkWallhavenEntities = wallhavenEntities.shuffled().take(4)
+        val lightDarkRedditEntities = redditEntities.shuffled().take(4)
+        val lightDarkEntities = lightDarkWallhavenEntities.map {
+            LightDarkEntity(
+                id = 0,
+                source = Source.WALLHAVEN,
+                sourceId = it.wallhavenId,
+                typeFlags = possibleLightDarkTypes.random(),
+                updatedOn = clock.now(),
+            )
+        } + lightDarkRedditEntities.map {
+            LightDarkEntity(
+                id = 0,
+                source = Source.REDDIT,
+                sourceId = it.redditId,
+                typeFlags = possibleLightDarkTypes.random(),
+                updatedOn = clock.now(),
+            )
+        }
+        lightDarkDao.insertAll(lightDarkEntities)
+
         // view 2 wallhaven and 2 reddit wallpapers
         val viewedWallhavenEntities = wallhavenEntities.shuffled().take(2)
         val viewedRedditEntities = redditEntities.shuffled().take(2)
@@ -164,56 +194,27 @@ class BackupRestoreUtilsTest {
 
     private suspend fun insertWallhavenEntities(
         allWallhavenUploadersNull: Boolean = false,
-    ): List<WallhavenWallpaperEntity> {
-        val networkWallhavenWallpapers = MockFactory.generateNetworkWallhavenWallpapers(
-            random = random,
-            clock = clock,
-            allUploadersNull = allWallhavenUploadersNull,
-        )
-        val networkUploaders = networkWallhavenWallpapers.mapNotNull { it.uploader }
-        val networkTags = networkWallhavenWallpapers.flatMap { it.tags ?: emptyList() }
-        tagsDao.insert(networkTags.map { it.toEntity() })
-        // need wallhaven tag id to wallhaven wallpaper id mapping
-        val wallpaperTagsMap = networkWallhavenWallpapers.associate {
-            it.id to it.tags?.map { t -> t.id }
-        }
-        val dbTagMap = tagsDao.getAll().associateBy { it.wallhavenId }
+        count: Int = 10,
+    ) = actualInsertWallhavenEntities(
+        random = random,
+        clock = clock,
+        tagsDao = tagsDao,
+        uploadersDao = uploadersDao,
+        wallhavenWallpapersDao = wallhavenWallpapersDao,
+        allWallhavenUploadersNull = allWallhavenUploadersNull,
+        count = count,
+    )
 
-        uploadersDao.insert(networkUploaders.map { it.toEntity() })
-
-        val wallpaperEntities = networkWallhavenWallpapers.map {
-            it.toWallpaperEntity()
-        }
-        wallhavenWallpapersDao.insert(wallpaperEntities)
-
-        val wallpaperMap = wallhavenWallpapersDao.getAll().associateBy { it.wallhavenId }
-        val wallpaperTagEntities = wallpaperMap.flatMap {
-            val whTagIds = wallpaperTagsMap[it.key] ?: emptyList()
-            val tagDbIds = whTagIds.mapNotNull { tId -> dbTagMap[tId]?.id }
-            tagDbIds.map { tDbId ->
-                WallhavenWallpaperTagsEntity(
-                    wallpaperId = it.value.id,
-                    tagId = tDbId,
-                )
-            }
-        }
-        wallhavenWallpapersDao.insertWallpaperTagMappings(wallpaperTagEntities)
-        return wallpaperEntities
-    }
-
-    private suspend fun insertRedditEntities(): List<RedditWallpaperEntity> {
-        val networkRedditPosts = MockFactory.generateNetworkRedditPosts(
-            random = random,
-        )
-        val wallpaperEntities = networkRedditPosts.flatMap {
-            it.toWallpaperEntities()
-        }
-        redditWallpapersDao.insert(wallpaperEntities)
-        return wallpaperEntities
-    }
+    private suspend fun insertRedditEntities(
+        count: Int = 10,
+    ) = actualInsertRedditEntities(
+        random = random,
+        redditWallpapersDao = redditWallpapersDao,
+        count = count,
+    )
 
     private fun TestScope.dataStore() = PreferenceDataStoreFactory.create(
-        scope = this,
+        scope = this.backgroundScope,
         produceFile = { context.preferencesDataStoreFile(TEST_DATASTORE_NAME) },
     )
 
@@ -221,7 +222,15 @@ class BackupRestoreUtilsTest {
 
     private val DataStore<Preferences>.appPreferencesRepository
         get() = AppPreferencesRepository(
+            context = context,
             dataStore = this,
+            favoritesRepository = FavoritesRepository(
+                favoriteDao = favoriteDao,
+                wallhavenWallpapersDao = wallhavenWallpapersDao,
+                redditWallpapersDao = redditWallpapersDao,
+                localWallpapersRepository = FakeLocalWallpapersRepository(),
+                ioDispatcher = testDispatcher,
+            ),
             ioDispatcher = testDispatcher,
         )
 
@@ -232,24 +241,21 @@ class BackupRestoreUtilsTest {
         try {
             initDb()
             val jsonStr = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     viewed = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(jsonStr)
             val dbWallhavenWallpapers = wallhavenWallpapersDao.getAll()
             val dbRedditWallpapers = redditWallpapersDao.getAll()
             val dbFavorites = favoriteDao.getAll()
+            val dbLightDark = lightDarkDao.getAll()
             val dbViewed = viewedDao.getAll()
             val dbSavedSearches = savedSearchDao.getAll()
             val dbSavedSearchesMap = dbSavedSearches.groupBy {
@@ -268,28 +274,65 @@ class BackupRestoreUtilsTest {
                 decoded.favorites?.sortedBy { it.id },
             )
             assertEquals(
+                dbLightDark.sortedBy { it.id },
+                decoded.lightDark?.sortedBy { it.id },
+            )
+            assertEquals(
                 dbViewed.sortedBy { it.id },
                 decoded.viewed?.sortedBy { it.id },
             )
 
+            val decodedWallhavenEntities = decoded.wallhaven
+                ?.wallpapers
+                ?.sortedBy { it.id }
+                ?: emptyList()
+            val decodedRedditEntities = decoded.reddit
+                ?.wallpapers
+                ?.sortedBy { it.id }
+                ?: emptyList()
+
             val favoritedWallhavenIds = dbFavorites
                 .filter { it.source == Source.WALLHAVEN }
                 .map { it.sourceId }
-            assertEquals(
-                dbWallhavenWallpapers
-                    .filter { it.wallhavenId in favoritedWallhavenIds }
-                    .sortedBy { it.id },
-                decoded.wallhaven?.wallpapers?.sortedBy { it.id },
+            assertTrue(
+                decodedWallhavenEntities.containsAll(
+                    dbWallhavenWallpapers
+                        .filter { it.wallhavenId in favoritedWallhavenIds }
+                        .sortedBy { it.id },
+                ),
             )
 
             val favoritedRedditIds = dbFavorites
                 .filter { it.source == Source.REDDIT }
                 .map { it.sourceId }
-            assertEquals(
-                dbRedditWallpapers
-                    .filter { it.redditId in favoritedRedditIds }
-                    .sortedBy { it.id },
-                decoded.reddit?.wallpapers?.sortedBy { it.id },
+            assertTrue(
+                decodedRedditEntities.containsAll(
+                    dbRedditWallpapers
+                        .filter { it.redditId in favoritedRedditIds }
+                        .sortedBy { it.id },
+                ),
+            )
+
+            val lightDarkWallhavenIds = dbLightDark
+                .filter { it.source == Source.WALLHAVEN }
+                .map { it.sourceId }
+            assertTrue(
+                decodedWallhavenEntities.containsAll(
+                    dbWallhavenWallpapers
+                        .filter { it.wallhavenId in lightDarkWallhavenIds }
+                        .sortedBy { it.id },
+                ),
+            )
+
+            val lightDarkRedditIds = dbLightDark
+                .filter { it.source == Source.REDDIT }
+                .map { it.sourceId }
+            assertTrue(
+                decodedRedditEntities.containsAll(
+                    dbRedditWallpapers
+                        .filter { it.redditId in lightDarkRedditIds }
+                        .sortedBy { it.id },
+                ),
             )
 
             assertEquals(
@@ -306,6 +349,20 @@ class BackupRestoreUtilsTest {
         }
     }
 
+    private suspend fun getBackupV1Json(
+        appPreferencesRepository: AppPreferencesRepository,
+        options: BackupOptions,
+    ) = getBackupV1Json(
+        options = options,
+        appPreferencesRepository = appPreferencesRepository,
+        favoriteDao = favoriteDao,
+        wallhavenWallpapersDao = wallhavenWallpapersDao,
+        redditWallpapersDao = redditWallpapersDao,
+        savedSearchDao = savedSearchDao,
+        viewedDao = viewedDao,
+        lightDarkDao = lightDarkDao,
+    )
+
     @Test
     fun shouldRestoreBackup() = runTest(testDispatcher) {
         val dataStore = dataStore()
@@ -313,38 +370,61 @@ class BackupRestoreUtilsTest {
         try {
             initDb()
             val oldPreferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
-            val oldDbFavorites = favoriteDao.getAll()
             val oldDbViewed = viewedDao.getAll()
+
+            val oldDbFavorites = favoriteDao.getAll()
             val oldFavWallhavenIds = oldDbFavorites
                 .filter { it.source == Source.WALLHAVEN }
                 .map { it.sourceId }
             val oldDbFavWallpapersWithUploaderAndTags =
                 wallhavenWallpapersDao.getAllWithUploaderAndTags()
                     .filter { it.wallpaper.wallhavenId in oldFavWallhavenIds }
-            val oldDbWallhavenWallpapers = oldDbFavWallpapersWithUploaderAndTags.map {
+            val oldDbFavWallhavenWallpapers = oldDbFavWallpapersWithUploaderAndTags.map {
                 it.wallpaper
             }
             val oldFavRedditIds = oldDbFavorites
                 .filter { it.source == Source.REDDIT }
                 .map { it.sourceId }
-            val oldDbRedditWallpapers = redditWallpapersDao.getAll().filter {
+            val oldDbFavRedditWallpapers = redditWallpapersDao.getAll().filter {
                 it.redditId in oldFavRedditIds
             }
+
+            val oldDbLightDark = lightDarkDao.getAll()
+            val oldLightDarkWallhavenIds = oldDbLightDark
+                .filter { it.source == Source.WALLHAVEN }
+                .filter { it.sourceId !in oldFavWallhavenIds }
+                .map { it.sourceId }
+            val oldDbLightDarkWallpapersWithUploaderAndTags =
+                wallhavenWallpapersDao.getAllWithUploaderAndTags()
+                    .filter { it.wallpaper.wallhavenId in oldLightDarkWallhavenIds }
+            val oldDbLightDarkWallhavenWallpapers = oldDbLightDarkWallpapersWithUploaderAndTags
+                .map {
+                    it.wallpaper
+                }
+            val oldLightDarkRedditIds = oldDbLightDark
+                .filter { it.source == Source.REDDIT }
+                .filter { it.sourceId !in oldFavRedditIds }
+                .map { it.sourceId }
+            val oldDbLightDarkRedditWallpapers = redditWallpapersDao.getAll().filter {
+                it.redditId in oldLightDarkRedditIds
+            }
+
+            val oldDbWallhavenWallpapers = oldDbFavWallhavenWallpapers +
+                oldDbLightDarkWallhavenWallpapers
+            val oldDbRedditWallpapers = oldDbFavRedditWallpapers +
+                oldDbLightDarkRedditWallpapers
+
             val oldDbSavedSearches = savedSearchDao.getAll()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     viewed = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
             // clear all tables and preferences
@@ -353,47 +433,21 @@ class BackupRestoreUtilsTest {
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
+                appPreferencesRepository = appPreferencesRepository,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     viewed = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
-                ),
-                appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
                 ),
             )
             val preferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
             val dbWallhavenWallpapers = wallhavenWallpapersDao.getAll()
             val dbFavorites = favoriteDao.getAll()
+            val dbLightDark = lightDarkDao.getAll()
             val dbViewed = viewedDao.getAll()
             val dbRedditWallpapers = redditWallpapersDao.getAll()
             val dbSavedSearches = savedSearchDao.getAll()
@@ -412,6 +466,14 @@ class BackupRestoreUtilsTest {
                     .map { it.copy(id = 0) }
                     .sortedBy { it.sourceId },
                 dbFavorites
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+            )
+            assertEquals(
+                oldDbLightDark
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+                dbLightDark
                     .map { it.copy(id = 0) }
                     .sortedBy { it.sourceId },
             )
@@ -443,6 +505,51 @@ class BackupRestoreUtilsTest {
             dataStore.clear()
         }
     }
+
+    private suspend fun restoreBackup(
+        appPreferencesRepository: AppPreferencesRepository,
+        backup: Backup,
+        options: BackupOptions,
+    ) = restoreBackup(
+        context = context,
+        backup = backup,
+        options = options,
+        appPreferencesRepository = appPreferencesRepository,
+        savedSearchRepository = SavedSearchRepository(
+            savedSearchDao = savedSearchDao,
+            ioDispatcher = testDispatcher,
+        ),
+        wallhavenRepository = DefaultWallhavenRepository(
+            appDatabase = fakeDb,
+            wallHavenNetwork = FakeWallhavenNetworkDataSource(),
+            ioDispatcher = testDispatcher,
+        ),
+        redditRepository = DefaultRedditRepository(
+            appDatabase = fakeDb,
+            dataSource = FakeRedditNetworkDataSource(),
+            ioDispatcher = testDispatcher,
+        ),
+        favoritesRepository = FavoritesRepository(
+            favoriteDao = favoriteDao,
+            wallhavenWallpapersDao = wallhavenWallpapersDao,
+            redditWallpapersDao = redditWallpapersDao,
+            localWallpapersRepository = FakeLocalWallpapersRepository(),
+            ioDispatcher = testDispatcher,
+        ),
+        wallhavenWallpapersDao = wallhavenWallpapersDao,
+        redditWallpapersDao = redditWallpapersDao,
+        viewedRepository = ViewedRepository(
+            viewedDao = viewedDao,
+            ioDispatcher = testDispatcher,
+        ),
+        lightDarkRepository = LightDarkRepository(
+            lightDarkDao = lightDarkDao,
+            wallhavenWallpapersDao = wallhavenWallpapersDao,
+            redditWallpapersDao = redditWallpapersDao,
+            localWallpapersRepository = FakeLocalWallpapersRepository(),
+            ioDispatcher = testDispatcher,
+        ),
+    )
 
     @Test
     fun shouldRestoreBackupWithChangedPrefs() = runTest(testDispatcher) {
@@ -491,60 +598,29 @@ class BackupRestoreUtilsTest {
             appPreferencesRepository.updateTagsWriteType(ExifWriteType.OVERWRITE)
             val oldPreferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
             dataStore.clear()
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
                 appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
-                ),
             )
             val preferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
             assertEquals(oldPreferences, preferences)
@@ -571,59 +647,28 @@ class BackupRestoreUtilsTest {
             )
             val oldPreferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
             dataStore.clear()
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
+                appPreferencesRepository = appPreferencesRepository,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
-                ),
-                appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
                 ),
             )
             val preferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
@@ -651,18 +696,14 @@ class BackupRestoreUtilsTest {
             appPreferencesRepository.updateWallhavenApiKey("test")
             val oldPreferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
 
@@ -673,41 +714,14 @@ class BackupRestoreUtilsTest {
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
+                appPreferencesRepository = appPreferencesRepository,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
-                ),
-                appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
                 ),
             )
             val preferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
@@ -725,82 +739,94 @@ class BackupRestoreUtilsTest {
             initDb()
             val oldDbFavorites = favoriteDao.getAll()
             val oldFavWallhavenIds = oldDbFavorites.map { it.sourceId }
-            val oldDbFavWallpapersWithUploaderAndTags =
-                wallhavenWallpapersDao.getAllWithUploaderAndTags()
-                    .filter { it.wallpaper.wallhavenId in oldFavWallhavenIds }
-            val oldDbWallpapers = oldDbFavWallpapersWithUploaderAndTags.map { it.wallpaper }
-            val oldDbUploaders = oldDbFavWallpapersWithUploaderAndTags.mapNotNull { it.uploader }
-            val oldDbTags = oldDbFavWallpapersWithUploaderAndTags.flatMap {
+            val oldDbFavWallpapersWithUploaderAndTags = wallhavenWallpapersDao
+                .getAllWithUploaderAndTags()
+                .filter {
+                    it.wallpaper.wallhavenId in oldFavWallhavenIds
+                }
+            val oldDbFavWallpapers = oldDbFavWallpapersWithUploaderAndTags.map { it.wallpaper }
+            val oldDbFavUploaders = oldDbFavWallpapersWithUploaderAndTags.mapNotNull { it.uploader }
+            val oldDbFavTags = oldDbFavWallpapersWithUploaderAndTags.flatMap {
                 it.tags ?: emptyList()
             }
+
+            val oldDbLightDark = lightDarkDao.getAll()
+            val oldLightDarkWallhavenIds = oldDbLightDark.map { it.sourceId }
+            val oldDbLightDarkWallpapersWithUploaderAndTags = wallhavenWallpapersDao
+                .getAllWithUploaderAndTags()
+                .filter {
+                    it.wallpaper.wallhavenId in oldLightDarkWallhavenIds
+                }
+            val oldDbLightDarkWallpapers = oldDbLightDarkWallpapersWithUploaderAndTags.map {
+                it.wallpaper
+            }
+            val oldDbLightDarkUploaders = oldDbLightDarkWallpapersWithUploaderAndTags.mapNotNull {
+                it.uploader
+            }
+            val oldDbLightDarkTags = oldDbLightDarkWallpapersWithUploaderAndTags.flatMap {
+                it.tags ?: emptyList()
+            }
+
+            val oldDbWallpapers = oldDbFavWallpapers + oldDbLightDarkWallpapers
+            val oldDbUploaders = oldDbFavUploaders + oldDbLightDarkUploaders
+            val oldDbTags = oldDbFavTags + oldDbLightDarkTags
+
             val oldDbSavedSearches = savedSearchDao.getAll()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     viewed = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
 
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
+                appPreferencesRepository = appPreferencesRepository,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     viewed = true,
+                    lightDark = true,
                     file = Uri.EMPTY,
-                ),
-                appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
                 ),
             )
             val dbFavorites = favoriteDao.getAll()
             val dbFavWallhavenIds = dbFavorites.map { it.sourceId }
-            val dbWallsWithTagsAndUploaders =
-                wallhavenWallpapersDao.getAllWithUploaderAndTagsByWallhavenIds(
+            val dbFavWallsWithTagsAndUploaders = wallhavenWallpapersDao
+                .getAllWithUploaderAndTagsByWallhavenIds(
                     dbFavWallhavenIds,
                 )
-            val dbWallpapers = dbWallsWithTagsAndUploaders.map { it.wallpaper }
-            val dbUploaders = dbWallsWithTagsAndUploaders.mapNotNull { it.uploader }
-            val dbTags = dbWallsWithTagsAndUploaders.flatMap { it.tags ?: emptyList() }
+            val dbFavWallpapers = dbFavWallsWithTagsAndUploaders.map { it.wallpaper }
+            val dbFavUploaders = dbFavWallsWithTagsAndUploaders.mapNotNull { it.uploader }
+            val dbFavTags = dbFavWallsWithTagsAndUploaders.flatMap { it.tags ?: emptyList() }
+
+            val dbLightDark = lightDarkDao.getAll()
+            val dbLightDarkWallhavenIds = dbLightDark.map { it.sourceId }
+            val dbLightDarkWallsWithTagsAndUploaders = wallhavenWallpapersDao
+                .getAllWithUploaderAndTagsByWallhavenIds(
+                    dbLightDarkWallhavenIds,
+                )
+            val dbLightDarkWallpapers = dbLightDarkWallsWithTagsAndUploaders.map { it.wallpaper }
+            val dbLightDarkUploaders = dbLightDarkWallsWithTagsAndUploaders.mapNotNull {
+                it.uploader
+            }
+            val dbLightDarkTags = dbLightDarkWallsWithTagsAndUploaders.flatMap {
+                it.tags ?: emptyList()
+            }
+
+            val dbWallpapers = dbFavWallpapers + dbLightDarkWallpapers
+            val dbUploaders = dbFavUploaders + dbLightDarkUploaders
+            val dbTags = dbFavTags + dbLightDarkTags
+
             val dbSavedSearches = savedSearchDao.getAll()
             // need to reset db ids before comparing
             assertEquals(
@@ -873,18 +899,13 @@ class BackupRestoreUtilsTest {
             }
             val oldDbSavedSearches = savedSearchDao.getAll()
             val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     file = Uri.EMPTY,
                 ),
-                appPreferencesRepository = appPreferencesRepository,
-                favoriteDao = favoriteDao,
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                savedSearchDao = savedSearchDao,
-                viewedDao = viewedDao,
             )
             assertNotNull(json)
             // clear all tables and preferences
@@ -893,41 +914,13 @@ class BackupRestoreUtilsTest {
             // perform restore
             val backup = readBackupJson(json)
             restoreBackup(
-                context = context,
+                appPreferencesRepository = appPreferencesRepository,
                 backup = backup,
                 options = BackupOptions(
                     settings = true,
                     favorites = true,
                     savedSearches = true,
                     file = Uri.EMPTY,
-                ),
-                appPreferencesRepository = appPreferencesRepository,
-                savedSearchRepository = SavedSearchRepository(
-                    savedSearchDao = savedSearchDao,
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenRepository = DefaultWallhavenRepository(
-                    appDatabase = fakeDb,
-                    wallHavenNetwork = FakeWallhavenNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                redditRepository = DefaultRedditRepository(
-                    appDatabase = fakeDb,
-                    dataSource = FakeRedditNetworkDataSource(),
-                    ioDispatcher = testDispatcher,
-                ),
-                favoritesRepository = FavoritesRepository(
-                    favoriteDao = favoriteDao,
-                    wallhavenWallpapersDao = wallhavenWallpapersDao,
-                    redditWallpapersDao = redditWallpapersDao,
-                    localWallpapersRepository = FakeLocalWallpapersRepository(),
-                    ioDispatcher = testDispatcher,
-                ),
-                wallhavenWallpapersDao = wallhavenWallpapersDao,
-                redditWallpapersDao = redditWallpapersDao,
-                viewedRepository = ViewedRepository(
-                    viewedDao = viewedDao,
-                    ioDispatcher = testDispatcher,
                 ),
             )
             val preferences = appPreferencesRepository.appPreferencesFlow.firstOrNull()
@@ -996,6 +989,345 @@ class BackupRestoreUtilsTest {
         assertNotNull(backup.preferences?.autoWallpaperPreferences?.savedSearchIds)
         assertEquals(backup.preferences?.autoWallpaperPreferences?.savedSearchIds?.size, 1)
         assertNull(backup.viewed)
+    }
+
+    private suspend fun initDbWith1000Records() {
+        val count = 1000
+        val wallhavenEntities = insertWallhavenEntities(count = count)
+        val redditEntities = insertRedditEntities(count = count)
+
+        val favoriteEntities = wallhavenEntities.map {
+            FavoriteEntity(
+                id = 0,
+                source = Source.WALLHAVEN,
+                sourceId = it.wallhavenId,
+                favoritedOn = clock.now(),
+            )
+        } + redditEntities.map {
+            FavoriteEntity(
+                id = 0,
+                source = Source.REDDIT,
+                sourceId = it.redditId,
+                favoritedOn = clock.now(),
+            )
+        }
+        favoriteDao.insertAll(favoriteEntities)
+
+        val possibleLightDarkTypes = setOf(
+            LightDarkType.LIGHT,
+            LightDarkType.DARK,
+            LightDarkType.EXTRA_DIM,
+        )
+        val lightDarkEntities = wallhavenEntities.map {
+            LightDarkEntity(
+                id = 0,
+                source = Source.WALLHAVEN,
+                sourceId = it.wallhavenId,
+                typeFlags = possibleLightDarkTypes.random(),
+                updatedOn = clock.now(),
+            )
+        } + redditEntities.map {
+            LightDarkEntity(
+                id = 0,
+                source = Source.REDDIT,
+                sourceId = it.redditId,
+                typeFlags = possibleLightDarkTypes.random(),
+                updatedOn = clock.now(),
+            )
+        }
+        lightDarkDao.insertAll(lightDarkEntities)
+
+        val viewedEntities = wallhavenEntities.map {
+            ViewedEntity(
+                id = 0,
+                source = Source.WALLHAVEN,
+                sourceId = it.wallhavenId,
+                lastViewedOn = clock.now(),
+            )
+        } + redditEntities.map {
+            ViewedEntity(
+                id = 0,
+                source = Source.REDDIT,
+                sourceId = it.redditId,
+                lastViewedOn = clock.now(),
+            )
+        }
+        viewedDao.insertAll(viewedEntities)
+
+        val savedSearches = MockFactory.generateWallhavenSavedSearches(
+            random = random,
+            size = 1000,
+        ) + MockFactory.generateRedditSavedSearches(random = random)
+        savedSearchDao.upsert(savedSearches.map { it.toEntity() })
+    }
+
+    @Test
+    fun shouldCreateBackupJsonWith1000Records() = runTest(testDispatcher) {
+        val dataStore = dataStore()
+        val appPreferencesRepository = dataStore.appPreferencesRepository
+        try {
+            initDbWith1000Records()
+            val jsonStr = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
+                options = BackupOptions(
+                    settings = false,
+                    favorites = true,
+                    savedSearches = true,
+                    viewed = true,
+                    lightDark = true,
+                    file = Uri.EMPTY,
+                ),
+            )
+            assertNotNull(jsonStr)
+            val dbWallhavenWallpapers = wallhavenWallpapersDao.getAll()
+            val dbRedditWallpapers = redditWallpapersDao.getAll()
+            val dbFavorites = favoriteDao.getAll()
+            val dbLightDark = lightDarkDao.getAll()
+            val dbViewed = viewedDao.getAll()
+            val dbSavedSearches = savedSearchDao.getAll()
+            val dbSavedSearchesMap = dbSavedSearches.groupBy {
+                when (json.decodeFromString<Filters>(it.filters)) {
+                    is WallhavenFilters -> OnlineSource.WALLHAVEN
+                    is RedditFilters -> OnlineSource.REDDIT
+                }
+            }
+            val decoded = json.decodeFromString<BackupV1>(jsonStr)
+
+            assertEquals(
+                dbFavorites.sortedBy { it.id },
+                decoded.favorites?.sortedBy { it.id },
+            )
+            assertEquals(
+                dbLightDark.sortedBy { it.id },
+                decoded.lightDark?.sortedBy { it.id },
+            )
+            assertEquals(
+                dbViewed.sortedBy { it.id },
+                decoded.viewed?.sortedBy { it.id },
+            )
+
+            val decodedWallhavenEntities = decoded.wallhaven
+                ?.wallpapers
+                ?.sortedBy { it.id }
+                ?: emptyList()
+            val decodedRedditEntities = decoded.reddit
+                ?.wallpapers
+                ?.sortedBy { it.id }
+                ?: emptyList()
+
+            assertTrue(decodedWallhavenEntities.isNotEmpty())
+            assertTrue(decodedRedditEntities.isNotEmpty())
+
+            val favoritedWallhavenIds = dbFavorites
+                .filter { it.source == Source.WALLHAVEN }
+                .map { it.sourceId }
+            val favoriteWallhavenEntities = dbWallhavenWallpapers.filter {
+                it.wallhavenId in favoritedWallhavenIds
+            }
+            assertTrue(favoriteWallhavenEntities.isNotEmpty())
+            assertTrue(
+                decodedWallhavenEntities.containsAll(
+                    favoriteWallhavenEntities
+                        .sortedBy { it.id },
+                ),
+            )
+
+            val favoritedRedditIds = dbFavorites
+                .filter { it.source == Source.REDDIT }
+                .map { it.sourceId }
+            val favoriteRedditEntities = dbRedditWallpapers.filter {
+                it.redditId in favoritedRedditIds
+            }
+            assertTrue(favoriteRedditEntities.isNotEmpty())
+            assertTrue(
+                decodedRedditEntities.containsAll(
+                    favoriteRedditEntities.sortedBy { it.id },
+                ),
+            )
+
+            val lightDarkWallhavenIds = dbLightDark
+                .filter { it.source == Source.WALLHAVEN }
+                .map { it.sourceId }
+            val lightDarkWallhavenEntities = dbWallhavenWallpapers.filter {
+                it.wallhavenId in lightDarkWallhavenIds
+            }
+            assertTrue(lightDarkWallhavenEntities.isNotEmpty())
+            assertTrue(
+                decodedWallhavenEntities.containsAll(
+                    lightDarkWallhavenEntities
+                        .sortedBy { it.id },
+                ),
+            )
+
+            val lightDarkRedditIds = dbLightDark
+                .filter { it.source == Source.REDDIT }
+                .map { it.sourceId }
+            val lightDarkRedditEntities = dbRedditWallpapers.filter {
+                it.redditId in lightDarkRedditIds
+            }
+            assertTrue(lightDarkRedditEntities.isNotEmpty())
+            assertTrue(
+                decodedRedditEntities.containsAll(
+                    lightDarkRedditEntities.sortedBy { it.id },
+                ),
+            )
+
+            val decodedWallhavenSavedSearches = decoded.wallhaven?.savedSearches
+            assertTrue(decodedWallhavenSavedSearches?.isNotEmpty() == true)
+            assertEquals(
+                dbSavedSearchesMap[OnlineSource.WALLHAVEN]?.sortedBy { it.id },
+                decodedWallhavenSavedSearches?.sortedBy { it.id },
+            )
+
+            val decodedRedditSavedSearches = decoded.reddit?.savedSearches
+            assertTrue(decodedRedditSavedSearches?.isNotEmpty() == true)
+            assertEquals(
+                dbSavedSearchesMap[OnlineSource.REDDIT]?.sortedBy { it.id },
+                decodedRedditSavedSearches?.sortedBy { it.id },
+            )
+        } finally {
+            dataStore.clear()
+        }
+    }
+
+    @Test
+    fun shouldRestoreBackupWith1000Records() = runTest(testDispatcher) {
+        val dataStore = dataStore()
+        val appPreferencesRepository = dataStore.appPreferencesRepository
+        try {
+            initDbWith1000Records()
+            val oldDbViewed = viewedDao.getAll()
+
+            val oldDbFavorites = favoriteDao.getAll()
+            val oldFavWallhavenIds = oldDbFavorites
+                .filter { it.source == Source.WALLHAVEN }
+                .map { it.sourceId }
+            val oldDbFavWallpapersWithUploaderAndTags =
+                wallhavenWallpapersDao.getAllWithUploaderAndTags()
+                    .filter { it.wallpaper.wallhavenId in oldFavWallhavenIds }
+            val oldDbFavWallhavenWallpapers = oldDbFavWallpapersWithUploaderAndTags.map {
+                it.wallpaper
+            }
+            val oldFavRedditIds = oldDbFavorites
+                .filter { it.source == Source.REDDIT }
+                .map { it.sourceId }
+            val oldDbFavRedditWallpapers = redditWallpapersDao.getAll().filter {
+                it.redditId in oldFavRedditIds
+            }
+
+            val oldDbLightDark = lightDarkDao.getAll()
+            val oldLightDarkWallhavenIds = oldDbLightDark
+                .filter { it.source == Source.WALLHAVEN }
+                .filter { it.sourceId !in oldFavWallhavenIds }
+                .map { it.sourceId }
+            val oldDbLightDarkWallpapersWithUploaderAndTags =
+                wallhavenWallpapersDao.getAllWithUploaderAndTags()
+                    .filter { it.wallpaper.wallhavenId in oldLightDarkWallhavenIds }
+            val oldDbLightDarkWallhavenWallpapers = oldDbLightDarkWallpapersWithUploaderAndTags
+                .map {
+                    it.wallpaper
+                }
+            val oldLightDarkRedditIds = oldDbLightDark
+                .filter { it.source == Source.REDDIT }
+                .filter { it.sourceId !in oldFavRedditIds }
+                .map { it.sourceId }
+            val oldDbLightDarkRedditWallpapers = redditWallpapersDao.getAll().filter {
+                it.redditId in oldLightDarkRedditIds
+            }
+
+            val oldDbWallhavenWallpapers = oldDbFavWallhavenWallpapers +
+                oldDbLightDarkWallhavenWallpapers
+            val oldDbRedditWallpapers = oldDbFavRedditWallpapers +
+                oldDbLightDarkRedditWallpapers
+
+            val oldDbSavedSearches = savedSearchDao.getAll()
+            val json = getBackupV1Json(
+                appPreferencesRepository = appPreferencesRepository,
+                options = BackupOptions(
+                    settings = true,
+                    favorites = true,
+                    savedSearches = true,
+                    viewed = true,
+                    lightDark = true,
+                    file = Uri.EMPTY,
+                ),
+            )
+            assertNotNull(json)
+            // clear all tables and preferences
+            fakeDb.clearAllTables()
+            dataStore.clear()
+            // perform restore
+            val backup = readBackupJson(json)
+            restoreBackup(
+                appPreferencesRepository = appPreferencesRepository,
+                backup = backup,
+                options = BackupOptions(
+                    settings = true,
+                    favorites = true,
+                    savedSearches = true,
+                    viewed = true,
+                    lightDark = true,
+                    file = Uri.EMPTY,
+                ),
+            )
+            val dbWallhavenWallpapers = wallhavenWallpapersDao.getAll()
+            val dbFavorites = favoriteDao.getAll()
+            val dbLightDark = lightDarkDao.getAll()
+            val dbViewed = viewedDao.getAll()
+            val dbRedditWallpapers = redditWallpapersDao.getAll()
+            val dbSavedSearches = savedSearchDao.getAll()
+            // need to reset db ids before comparing
+            assertEquals(
+                oldDbWallhavenWallpapers
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.wallhavenId },
+                dbWallhavenWallpapers
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.wallhavenId },
+            )
+            assertEquals(
+                oldDbFavorites
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+                dbFavorites
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+            )
+            assertEquals(
+                oldDbLightDark
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+                dbLightDark
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+            )
+            assertEquals(
+                oldDbViewed
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+                dbViewed
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.sourceId },
+            )
+            assertEquals(
+                oldDbRedditWallpapers
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.redditId },
+                dbRedditWallpapers
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.redditId },
+            )
+            assertEquals(
+                oldDbSavedSearches
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.name },
+                dbSavedSearches
+                    .map { it.copy(id = 0) }
+                    .sortedBy { it.name },
+            )
+        } finally {
+            dataStore.clear()
+        }
     }
 
     companion object {
